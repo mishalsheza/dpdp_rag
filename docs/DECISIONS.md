@@ -88,6 +88,20 @@ local CPU models, retrieval only, cross-reference expansion off.
   wins, switch with `retrieval.mode: dense`.
 - **Cost trade-off.** BM25 runs in memory at negligible CPU cost. The cost is ranking
   quality when its lexical matches are wrong, as seen above.
+- **Re-measured 2026-10-10 on N = 27** (`dpdp-ablation`, retrieval only):
+
+  | | recall@5 | MRR | hit@5 |
+  |---|---|---|---|
+  | Dense | 0.65 | 0.77 | 0.85 |
+  | BM25 | 0.57 | 0.66 | 0.81 |
+  | Hybrid (RRF) | 0.65 | 0.74 | 0.85 |
+  | Hybrid + reranker | 0.62 | 0.77 | 0.85 |
+
+  Dense and hybrid are tied overall. They differ by category: dense is better on
+  lookup and corrigendum, hybrid is better on cross_reference and temporal recall. Each
+  difference is one or two items. Hybrid stays the base because query rewriting (D9)
+  gains more on top of it. The reranker helps scenario (0.31 / 0.55) but drops table
+  recall and puts the injection item's gold chunk out of the top 5, so it stays off.
 
 ## D4. Reranker: off by default
 
@@ -192,4 +206,55 @@ local CPU models, retrieval only, cross-reference expansion off.
   - The extra injection metric adds one judge call per injection item.
   - Judge `max_tokens` dropped from 4000 to 2000 to fit the free tier's TPM accounting.
     A verdict that truncates surfaces as a judge failure, not a silent `None`.
+
+## D9. Query rewriting for plain-language (scenario) questions: `fuse`
+
+- **Context.** Scenario questions ("we run a school that tracks students' behaviour; are
+  we compliant?") had recall@5 0.05 and MRR 0.11. The words "DPDP Act" pulled in generic
+  chunks (notification preambles, s3, s4(1)), and nothing in the question matched the
+  Act's terms ("Data Fiduciary", "child", "behavioural monitoring", "verifiable
+  consent").
+- **Choice.** Before retrieval, one LLM call (`prompts/query_rewrite.md`,
+  `openai/gpt-oss-20b`, temperature 0, disk-cached) returns a statutory restatement and
+  sub-issues. With `query_rewrite.strategy: fuse`, the original question and the
+  restatement are each ranked by hybrid retrieval, and the two rankings are fused with
+  RRF. Sub-issues are generated but unused under `fuse`.
+- **Evidence** (measured 2026-10-10, `dpdp-ablation`, N = 27 answerable items; recall@5 /
+  MRR):
+
+  | Strategy | overall | lookup (8) | xref (4) | table (5) | temporal (3) | corrigendum (2) | scenario (4) | injection (1) |
+  |---|---|---|---|---|---|---|---|---|
+  | off (hybrid) | 0.65 / 0.74 | 0.79 / 0.79 | 0.81 / 1.00 | 0.73 / 1.00 | 0.72 / 0.53 | 0.50 / 0.75 | 0.05 / 0.11 | 1.00 / 1.00 |
+  | replace | 0.68 / 0.76 | 0.62 / 0.77 | 0.81 / 0.88 | 0.83 / 1.00 | 0.56 / 0.42 | 0.75 / 0.75 | 0.43 / 0.55 | 1.00 / 1.00 |
+  | **fuse** | **0.71 / 0.78** | 0.79 / 0.78 | 0.81 / 1.00 | 0.73 / 1.00 | 0.72 / 0.50 | 0.75 / 0.75 | **0.31 / 0.47** | 1.00 / 1.00 |
+  | decompose (weighted) | 0.63 / 0.76 | 0.67 / 0.75 | 0.71 / 1.00 | 0.63 / 0.83 | 0.72 / 0.53 | 0.50 / 0.75 | 0.39 / 0.58 | 1.00 / 1.00 |
+  | fuse + decompose (weighted) | 0.67 / 0.76 | 0.67 / 0.76 | 0.71 / 1.00 | 0.73 / 0.85 | 0.72 / 0.50 | 0.75 / 0.75 | 0.39 / 0.53 | 1.00 / 1.00 |
+
+  Rewrites are LLM outputs: temperature 0 reduces variation but doesn't remove it. An
+  earlier measurement the same day gave the same `fuse` row and slightly different
+  `replace` and decompose rows, with the same conclusions. The disk cache makes reruns
+  identical.
+- **Why not decompose.** It finds more scenario gold chunks, but it regresses lookup,
+  cross_reference and table. The 20b model also emits sub-issues for some narrow
+  questions (for example the territorial-scope lookup), and those sub-queries pull in
+  off-target chunks. Giving all sub-issues a combined RRF weight of 1
+  (`sub_issue_weight`) reduced the damage but did not remove it. `replace` drops the
+  user's own words, which costs lookup and temporal.
+- **Noise.** Scenario has n = 4, and scenario-002 has 7 gold chunks, so its recall@5
+  can't exceed 0.71. The 0.05 → 0.31 gain is about one more gold chunk found per
+  question. The MRR gain is larger: the first gold chunk moves into the top 3 on 3 of 4
+  items. Everything else is within one item: temporal MRR 0.53 → 0.50 is one rank,
+  corrigendum 0.50 → 0.75 is one chunk. The prompt was revised once after the first
+  version produced no sub-issues. The glossary in it is generic DPDP vocabulary, not
+  tied to the golden questions, but with 4 scenario items some overfitting can't be
+  ruled out. Re-check this on new scenario questions.
+- **Cost trade-off.**
+  - One extra LLM call per uncached question: latency (sub-second on Groq, not yet
+    load-tested) and quota on a separate model, so it doesn't eat the answerer's daily
+    tokens.
+  - If the call fails, retrieval falls back to the original query and logs a warning.
+    The eval records each fallback as an item error, and the ablation fails instead.
+  - Load tests and unit tests run with the rewrite off.
+- **Revisit when** there are 10+ scenario questions, or when a classifier can reliably
+  tell situations from narrow questions (then decompose only situations).
 

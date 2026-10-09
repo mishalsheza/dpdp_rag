@@ -12,7 +12,11 @@ from dpdp_rag.config import resolve
 
 
 def prompt_paths(config: dict[str, Any]) -> dict[str, Path]:
-    return {name: resolve(p) for name, p in config["generation"]["prompt_files"].items()}
+    """Every prompt file the system config uses (answering and query rewriting)."""
+    paths = {name: resolve(p) for name, p in config["generation"]["prompt_files"].items()}
+    rewrite = (config.get("query_rewrite") or {}).get("prompt_files") or {}
+    paths.update({f"query_rewrite.{name}": resolve(p) for name, p in rewrite.items()})
+    return paths
 
 
 @dataclass(frozen=True)

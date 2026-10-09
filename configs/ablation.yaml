@@ -10,6 +10,15 @@ variants:
   - {name: hybrid + reranker, chunks: structure, mode: hybrid, rerank: true}
   - {name: dense (fixed chunks), chunks: fixed, mode: dense, rerank: false}
   - {name: hybrid (fixed chunks), chunks: fixed, mode: hybrid, rerank: false}
+  # Query rewriting (retrieval/rewrite.py; one cached LLM call per question).
+  - {name: hybrid + rewrite (replace), chunks: structure, mode: hybrid, rerank: false,
+     rewrite: replace}
+  - {name: hybrid + rewrite (fuse), chunks: structure, mode: hybrid, rerank: false,
+     rewrite: fuse}
+  - {name: hybrid + decompose, chunks: structure, mode: hybrid, rerank: false,
+     rewrite: decompose}
+  - {name: hybrid + rewrite + decompose, chunks: structure, mode: hybrid, rerank: false,
+     rewrite: fuse_decompose}
 # Fixed-size baseline: each document's text (chunks in reading order) cut into windows.
 fixed_chunks:
   size_chars: 1000

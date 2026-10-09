@@ -1,6 +1,8 @@
 # Overrides for the load test: DPDP_CONFIG_OVERRIDES=loadtest.yaml uv run dpdp-api
 # Measures the serving path (API + embedding + Qdrant + BM25 + fusion + prompt building)
 # without paying for, or waiting on, a real LLM. Every answer says it is a stub.
+query_rewrite:
+  strategy: off  # the rewrite is a real Groq call; keep the load test offline
 llm:
   provider: stub
   stub_latency_ms: 0  # set e.g. 1500 to simulate model latency

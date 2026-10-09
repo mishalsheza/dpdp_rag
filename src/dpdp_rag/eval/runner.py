@@ -123,6 +123,7 @@ class EvalRunner:
             "judge_cost_usd": 0.0,
             "errors": [],
         }
+        fallbacks = self.retriever.rewrite_fallbacks
         try:
             out["retrieval"] = self._retrieval(item)
         except (ConnectionError, RetrievalUnavailable) as exc:
@@ -134,6 +135,10 @@ class EvalRunner:
             out["answer"] = {"error": str(exc)}
             out["errors"].append(f"answer: {exc}")
             return out
+        finally:
+            # A failed query rewrite silently degrades to the original query; count it.
+            if self.retriever.rewrite_fallbacks > fallbacks:
+                out["errors"].append("retrieval: query rewrite failed; used the original query")
         out["answer"] = {
             "text": result.answer,
             "refused": result.refused,

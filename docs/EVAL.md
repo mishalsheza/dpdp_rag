@@ -148,6 +148,13 @@ chunk ids.
 
 Recall@1 can't reach 1.0 for items with more than one gold chunk; that's expected.
 
+The ranked list includes query rewriting (`query_rewrite.strategy`, docs/DECISIONS.md
+D9), exactly as the API retrieves. If a rewrite fails, the system falls back to the
+original query, and the eval records that as an item error. Without it, a broken
+rewriter would silently measure the old retriever. To compare rewrite strategies
+without the answer model, use `uv run dpdp-ablation --only <variant>`. It reports
+overall and per-category recall and MRR, and a failed rewrite fails it.
+
 ### Answers (LLM-as-judge)
 
 The judge is given the following, in `prompts/judge_input.md`:

@@ -46,6 +46,41 @@ retrieval:
   candidates: 50  # results taken from each retriever before fusion / reranking
   rrf_k: 60  # reciprocal rank fusion constant: score = sum(1 / (rrf_k + rank))
 
+# Query rewriting before retrieval (retrieval/rewrite.py). One LLM call restates the
+# question in the Act's terminology and lists sub-issues; each query is ranked and the
+# rankings are fused with RRF. off | replace | fuse | decompose | fuse_decompose
+query_rewrite:
+  # fuse won the 2026-10-10 ablation (docs/DECISIONS.md D9): scenario recall@5 0.05->0.31
+  # with no regression elsewhere beyond one-item noise. decompose helped scenario more
+  # but regressed lookup / cross_reference / table.
+  strategy: fuse
+  max_sub_issues: 4
+  # Total RRF weight shared by the sub-issue rankings (the original and the restatement
+  # weigh 1 each), so many sub-issues cannot outvote the question itself.
+  sub_issue_weight: 1.0
+  # On an LLM failure, retrieve with the original query (logged) instead of failing.
+  fallback_on_error: true
+  prompt_files:
+    system: prompts/query_rewrite.md
+    user: prompts/query_rewrite_user.md
+    schema: prompts/query_rewrite_schema.json
+  # A smaller model than the answerer: the task is short, it adds latency to every query,
+  # and Groq's free-tier daily token limit is per model.
+  llm:
+    provider: groq
+    model: openai/gpt-oss-20b
+    temperature: 0
+    reasoning_effort: low
+    max_tokens: 1500
+    timeout_s: 30
+    max_retries: 6
+    pricing: {input: 0, output: 0, long_context_threshold: 1000000000, long_input: 0,
+              long_output: 0, cache_write_multiplier: 1.0, cache_read_multiplier: 1.0}
+  # Identical questions reuse the stored rewrite (also makes ablations reproducible).
+  cache:
+    enabled: true
+    path: data/cache/llm_calls.sqlite
+
 reranker:
   enabled: false
   provider: fastembed

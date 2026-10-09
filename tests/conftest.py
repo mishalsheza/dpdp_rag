@@ -51,6 +51,7 @@ def retrieval_config() -> dict[str, Any]:
             "reranker": {"enabled": False},
             "filters": {"doc_type": None, "rule": None, "section": None, "in_force_only": False},
             "cross_refs": {"enabled": False},
+            "query_rewrite": {"strategy": "off"},  # no LLM calls in tests
         },
     )
 

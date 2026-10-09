@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
 
 from dpdp_rag.config import load_system_config, resolve
+from dpdp_rag.generation.llm import LLMError
 from dpdp_rag.ingest.models import Chunk
 from dpdp_rag.retrieval.bm25 import BM25Index
 from dpdp_rag.retrieval.embeddings import Embedder, make_embedder
@@ -14,9 +16,12 @@ from dpdp_rag.retrieval.filters import Filters
 from dpdp_rag.retrieval.fusion import rrf
 from dpdp_rag.retrieval.qdrant_index import QdrantIndex, make_client
 from dpdp_rag.retrieval.rerank import Reranker, make_reranker
+from dpdp_rag.retrieval.rewrite import STRATEGIES, QueryRewriter, make_rewriter
 from dpdp_rag.retrieval.store import ChunkStore, render
 
 MODES = ("dense", "bm25", "hybrid")
+
+log = logging.getLogger(__name__)
 
 
 class RetrievalUnavailable(RuntimeError):
@@ -51,6 +56,7 @@ class Retriever:
         store: ChunkStore | None = None,
         embedder: Embedder | None = None,
         reranker: Reranker | None = None,
+        rewriter: QueryRewriter | None = None,
     ) -> None:
         self.config = config
         self.store = store or ChunkStore.from_file(resolve(config["data"]["chunks_file"]))
@@ -59,6 +65,8 @@ class Retriever:
         self._reranker = reranker if reranker is not None else make_reranker(config["reranker"])
         self._index: QdrantIndex | None = None
         self._bm25: BM25Index | None = None
+        self._rewriter = rewriter
+        self.rewrite_fallbacks = 0  # failed rewrites answered with the original query
 
     # Components are built on first use so that, e.g., BM25-only runs need no Qdrant.
     @property
@@ -103,9 +111,12 @@ class Retriever:
         mode: str | None = None,
         rerank: bool | None = None,
         cross_refs: bool | None = None,
+        rewrite: str | None = None,
     ) -> list[RetrievedChunk]:
         """Top-k chunks for `query`, best first, followed by any cross-referenced chunks.
 
+        `rewrite` is a query_rewrite strategy (see retrieval/rewrite.py). With more than
+        one query, each is ranked on its own and the rankings are fused with RRF.
         Arguments left as None take their value from the config.
         """
         rcfg = self.config["retrieval"]
@@ -116,22 +127,18 @@ class Retriever:
         filters = filters if filters is not None else self.filters
         limit = max(int(rcfg["candidates"]), k)
 
-        per_stage: dict[str, dict[str, float]] = {}
-        rankings: list[list[str]] = []
-        if mode in ("dense", "hybrid"):
-            dense = self.index.search(query, limit, filters)
-            per_stage["dense"] = dict(dense)
-            rankings.append([cid for cid, _ in dense])
-        if mode in ("bm25", "hybrid"):
-            sparse = [(c.chunk_id, s) for c, s in self.bm25.search(query, limit, filters)]
-            per_stage["bm25"] = dict(sparse)
-            rankings.append([cid for cid, _ in sparse])
-
-        if mode == "hybrid":
-            ranked = rrf(rankings, int(rcfg["rrf_k"]))
-            per_stage["rrf"] = dict(ranked)
+        queries = self._queries(query, rewrite)
+        if len(queries) == 1:
+            ranked, per_stage = self._rank(queries[0][0], mode, filters, limit)
         else:
-            ranked = list(per_stage[mode].items())
+            per_query = [self._rank(q, mode, filters, limit) for q, _ in queries]
+            ranked = rrf(
+                [[cid for cid, _ in r] for r, _ in per_query],
+                int(rcfg["rrf_k"]),
+                [w for _, w in queries],
+            )
+            per_stage = per_query[0][1]  # stage scores of the original query, for debugging
+            per_stage["multi_query"] = dict(ranked)
 
         results = [
             RetrievedChunk(
@@ -150,6 +157,50 @@ class Retriever:
         if expand:
             results += self._expand(results, filters)
         return results
+
+    def _queries(self, query: str, strategy: str | None) -> list[tuple[str, float]]:
+        """(query, RRF weight): the original, plus rewrites when a strategy is active."""
+        qcfg = self.config.get("query_rewrite") or {}
+        strategy = strategy or qcfg.get("strategy", "off")
+        if strategy not in STRATEGIES:
+            raise ValueError(f"rewrite must be one of {STRATEGIES}, got {strategy!r}")
+        if strategy == "off":
+            return [(query, 1.0)]
+        if self._rewriter is None:
+            self._rewriter = make_rewriter({**qcfg, "strategy": strategy})
+        assert self._rewriter is not None
+        try:
+            plan = self._rewriter.plan(query)
+            return plan.queries(query, strategy, float(qcfg.get("sub_issue_weight", 1.0)))
+        except LLMError as exc:
+            if not qcfg.get("fallback_on_error", True):
+                raise RetrievalUnavailable(f"query rewrite failed: {exc}") from exc
+            self.rewrite_fallbacks += 1
+            log.warning("query rewrite failed, using the original query: %s", exc)
+            return [(query, 1.0)]
+
+    def _rank(
+        self, query: str, mode: str, filters: Filters, limit: int
+    ) -> tuple[list[tuple[str, float]], dict[str, dict[str, float]]]:
+        """One query's ranking (dense, BM25 or their RRF) and its per-stage scores."""
+        rcfg = self.config["retrieval"]
+        per_stage: dict[str, dict[str, float]] = {}
+        rankings: list[list[str]] = []
+        if mode in ("dense", "hybrid"):
+            dense = self.index.search(query, limit, filters)
+            per_stage["dense"] = dict(dense)
+            rankings.append([cid for cid, _ in dense])
+        if mode in ("bm25", "hybrid"):
+            sparse = [(c.chunk_id, s) for c, s in self.bm25.search(query, limit, filters)]
+            per_stage["bm25"] = dict(sparse)
+            rankings.append([cid for cid, _ in sparse])
+
+        if mode == "hybrid":
+            ranked = rrf(rankings, int(rcfg["rrf_k"]))
+            per_stage["rrf"] = dict(ranked)
+        else:
+            ranked = list(per_stage[mode].items())
+        return ranked, per_stage
 
     def _rerank(self, query: str, results: list[RetrievedChunk]) -> list[RetrievedChunk]:
         if self._reranker is None:

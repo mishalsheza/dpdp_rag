@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "statutory_query": {"type": "string"},
+    "sub_issues": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["statutory_query", "sub_issues"],
+  "additionalProperties": false
+}

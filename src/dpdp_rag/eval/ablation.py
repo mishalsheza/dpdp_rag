@@ -1,7 +1,9 @@
 """Retrieval ablation over the golden set: `uv run dpdp-ablation`.
 
-Compares retrieval setups (dense, BM25, hybrid, hybrid + reranker) and structure-aware
-vs fixed-size chunks by recall@k, hit rate and MRR. Retrieval only: no LLM calls.
+Compares retrieval setups (dense, BM25, hybrid, hybrid + reranker, query-rewrite
+strategies) and structure-aware vs fixed-size chunks by recall@k, hit rate and MRR,
+overall and per category. Retrieval only; the only LLM calls are query rewrites
+(variants with `rewrite` other than off), which are cached on disk.
 
 Fixed-size chunks don't share ids with the gold labels, so a fixed chunk counts as
 retrieving a gold chunk when their character spans overlap by at least `min_overlap` of
@@ -17,7 +19,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-from dpdp_rag.config import load_config, load_system_config, merge, resolve
+from dotenv import load_dotenv
+
+from dpdp_rag.config import REPO_ROOT, load_config, load_system_config, merge, resolve
 from dpdp_rag.eval.golden import GoldenItem, load_golden
 from dpdp_rag.eval.retrieval_metrics import hit_at_k, reciprocal_rank
 from dpdp_rag.ingest.models import Chunk
@@ -109,10 +113,17 @@ def score_item(
     return out
 
 
-def run_ablation(cfg: dict[str, Any], system: dict[str, Any]) -> dict[str, Any]:
+def run_ablation(
+    cfg: dict[str, Any], system: dict[str, Any], only: list[str] | None = None
+) -> dict[str, Any]:
     base = merge(
         system,
-        {"qdrant": {"location": ":memory:", "auto_index": True}, "cross_refs": {"enabled": False}},
+        {
+            "qdrant": {"location": ":memory:", "auto_index": True},
+            "cross_refs": {"enabled": False},
+            # A failed rewrite must fail the ablation, not silently measure the original.
+            "query_rewrite": {"fallback_on_error": False},
+        },
     )
     structure = ChunkStore.from_file(resolve(system["data"]["chunks_file"]))
     items = [
@@ -134,7 +145,8 @@ def run_ablation(cfg: dict[str, Any], system: dict[str, Any]) -> dict[str, Any]:
 
     retrievers: dict[str, Retriever] = {}
     results: list[dict[str, Any]] = []
-    for v in cfg["variants"]:
+    variants = [v for v in cfg["variants"] if not only or v["name"] in only]
+    for v in variants:
         key = v["chunks"]
         if key not in retrievers:
             store = structure if key == "structure" else fixed_store
@@ -149,6 +161,7 @@ def run_ablation(cfg: dict[str, Any], system: dict[str, Any]) -> dict[str, Any]:
                 mode=v["mode"],
                 rerank=bool(v["rerank"]),
                 cross_refs=False,
+                rewrite=v.get("rewrite", "off"),
             )
             ranked = [h.chunk.chunk_id for h in hits]
             relevant = None
@@ -173,8 +186,23 @@ def run_ablation(cfg: dict[str, Any], system: dict[str, Any]) -> dict[str, Any]:
             for m in per_item[0]
             if m not in ("id", "category")
         }
+        cats = list(dict.fromkeys(p["category"] for p in per_item))
+        by_cat = {
+            c: {
+                "n": len(ps := [p for p in per_item if p["category"] == c]),
+                **{m: sum(p[m] for p in ps) / len(ps) for m in metrics},
+            }
+            for c in cats
+        }
         results.append(
-            {"variant": v["name"], **v, "n": len(per_item), "metrics": metrics, "items": per_item}
+            {
+                "variant": v["name"],
+                **v,
+                "n": len(per_item),
+                "metrics": metrics,
+                "by_category": by_cat,
+                "items": per_item,
+            }
         )
         log.info("%s: %s", v["name"], {k: round(x, 3) for k, x in metrics.items()})
     return {
@@ -191,13 +219,26 @@ def run_ablation(cfg: dict[str, Any], system: dict[str, Any]) -> dict[str, Any]:
 def markdown(res: dict[str, Any]) -> str:
     ks = res["settings"]["ks"]
     cols = [f"recall@{k}" for k in ks] + ["mrr", f"hit_rate@{ks[-1]}"]
-    lines = ["| Variant | Chunks | " + " | ".join(cols) + " |", "|---|---|" + "---|" * len(cols)]
+    lines = [
+        "| Variant | Chunks | Rewrite | " + " | ".join(cols) + " |",
+        "|---|---|---|" + "---|" * len(cols),
+    ]
     for v in res["variants"]:
         lines.append(
-            f"| {v['variant']} | {v['chunks']} | "
+            f"| {v['variant']} | {v['chunks']} | {v.get('rewrite', 'off')} | "
             + " | ".join(f"{v['metrics'][c]:.2f}" for c in cols)
             + " |"
         )
+    cats = list(dict.fromkeys(c for v in res["variants"] for c in v.get("by_category", {})))
+    if cats:
+        lines += ["", "Per category, recall@5 / MRR (n in the header):", ""]
+        ns = {c: next(v["by_category"][c]["n"] for v in res["variants"]) for c in cats}
+        lines.append("| Variant | " + " | ".join(f"{c} ({ns[c]})" for c in cats) + " |")
+        lines.append("|---|" + "---|" * len(cats))
+        for v in res["variants"]:
+            bc = v["by_category"]
+            cells = [f"{bc[c]['recall@5']:.2f} / {bc[c]['mrr']:.2f}" for c in cats]
+            lines.append(f"| {v['variant']} | " + " | ".join(cells) + " |")
     return "\n".join(lines) + (
         f"\n\nN = {res['n_items']} answerable golden questions · {res['n_structure_chunks']} "
         f"structure-aware chunks vs {res['n_fixed_chunks']} fixed "
@@ -209,11 +250,14 @@ def markdown(res: dict[str, Any]) -> str:
 def main(argv: list[str] | None = None) -> None:
     p = argparse.ArgumentParser(prog="dpdp-ablation", description=__doc__)
     p.add_argument("--config", default="ablation.yaml")
+    p.add_argument("--only", action="append", default=None, help="variant name; repeatable")
+    p.add_argument("--out", default=None, help="output JSON path (default: config output)")
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    load_dotenv(REPO_ROOT / ".env")  # GROQ_API_KEY for rewrite variants
     cfg = load_config(args.config)
-    res = run_ablation(cfg, load_system_config())
-    out = resolve(cfg["output"])
+    res = run_ablation(cfg, load_system_config(), args.only)
+    out = resolve(args.out or cfg["output"])
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res, indent=2) + "\n", encoding="utf-8")
     table = markdown(res)
