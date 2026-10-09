@@ -162,6 +162,8 @@ def run_ablation(
                 rerank=bool(v["rerank"]),
                 cross_refs=False,
                 rewrite=v.get("rewrite", "off"),
+                # Variants are explicit: no `boost:` map means no boosts (not the config's).
+                boost=v.get("boost", {}),
             )
             ranked = [h.chunk.chunk_id for h in hits]
             relevant = None

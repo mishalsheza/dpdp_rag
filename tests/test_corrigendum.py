@@ -103,6 +103,19 @@ def test_corrigendum_chunks_point_at_targets(by_id) -> None:
     c = by_id["gsr_892e:(ii)"]
     assert c.doc_type == "corrigendum" and c.rule == "13" and c.sub_rule == "5"
     assert str(c.in_force_date) == "2025-12-10"
+    # Version links used by the corrections boost: every corrigendum patch names the chunk
+    # it corrected, and that chunk carries corrected_by.
+    assert c.corrects == ["dpdp_rules_2025:r13(5)"]
+    assert by_id["gsr_892e:(iv)(a)"].corrects == ["dpdp_rules_2025:sch1:B:11"]
+    for chunk in by_id.values():
+        for target in chunk.corrects:
+            assert by_id[target].corrected_by == chunk.gsr_no
+
+
+def test_schedule_rows_carry_their_see_rules(by_id) -> None:
+    assert by_id["dpdp_rules_2025:sch3:1"].see_rules == ["8"]
+    assert by_id["dpdp_rules_2025:sch1:A:1"].see_rules == ["4"]
+    assert by_id["dpdp_rules_2025:r8(1)"].see_rules == []
 
 
 def _chunk(cid: str, text: str, page: int, lines: list[int]) -> Chunk:

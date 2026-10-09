@@ -19,6 +19,23 @@ variants:
      rewrite: decompose}
   - {name: hybrid + rewrite + decompose, chunks: structure, mode: hybrid, rerank: false,
      rewrite: fuse_decompose}
+  # Metadata boosts (retrieval/boost.py), each on top of hybrid + rewrite (fuse).
+  - {name: fuse + citations, chunks: structure, mode: hybrid, rerank: false, rewrite: fuse,
+     boost: {citations: 1}}
+  - {name: fuse + definitions, chunks: structure, mode: hybrid, rerank: false, rewrite: fuse,
+     boost: {definitions: 1}}
+  - {name: fuse + commencement, chunks: structure, mode: hybrid, rerank: false, rewrite: fuse,
+     boost: {commencement: 1}}
+  - {name: fuse + corrections, chunks: structure, mode: hybrid, rerank: false, rewrite: fuse,
+     boost: {corrections: 1}}
+  - {name: fuse + links, chunks: structure, mode: hybrid, rerank: false, rewrite: fuse,
+     boost: {links: 1}}
+  - {name: fuse + links 0.25, chunks: structure, mode: hybrid, rerank: false, rewrite: fuse,
+     boost: {links: 0.25}}
+  - {name: fuse + all boosts, chunks: structure, mode: hybrid, rerank: false, rewrite: fuse,
+     boost: {citations: 1, definitions: 1, commencement: 1, corrections: 1, links: 1}}
+  - {name: fuse + all but links, chunks: structure, mode: hybrid, rerank: false,
+     rewrite: fuse, boost: {citations: 1, definitions: 1, commencement: 1, corrections: 1}}
 # Fixed-size baseline: each document's text (chunks in reading order) cut into windows.
 fixed_chunks:
   size_chars: 1000

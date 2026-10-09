@@ -269,6 +269,7 @@ def patch_chunks(
                 item=target.item,
                 page=None,
                 text=f"{p.item} {p.source_text}",
+                corrects=list(p.target_chunk_ids),
                 in_force_date=result.published,
                 source_file=source["file"],
             )

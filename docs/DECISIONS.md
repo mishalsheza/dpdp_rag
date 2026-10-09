@@ -258,3 +258,83 @@ local CPU models, retrieval only, cross-reference expansion off.
 - **Revisit when** there are 10+ scenario questions, or when a classifier can reliably
   tell situations from narrow questions (then decompose only situations).
 
+## D10. Metadata boosts for citations, definitions, commencement and corrections
+
+- **Context.** After D9, the misses in lookup, temporal, corrigendum and table had
+  specific causes:
+  - **lookup:** no lookup question cites a section number. The misses were a
+    definition ("what counts as 'personal data'" → s2(t), crowded out by preambles and
+    s1) and territorial scope (s3).
+  - **temporal:** for "when do the Rules come into force", G.S.R. 843(E)'s Act
+    commencement items outranked rule 1.
+  - **corrigendum:** the corrected Schedule row was not retrieved next to its
+    corrigendum entry.
+  - **table:** tables are **not** split. Each Schedule row is one complete chunk
+    (largest 1,657 characters). The misses were the companion provisions: the parent
+    rule (r4(1), r8(1)) or the Act Schedule penalty row for a section (s15 →
+    schedule:5).
+- **Choice.** `retrieval/boost.py`. Each signal builds a ranked list from the original
+  query and chunk metadata, and that list is fused into the candidates with weighted
+  RRF (`boost.weights`):
+  - **citations:** "Section 8(5)", "sub-sections (1) and (3) of section 9", "rule
+    1(3)", "item 11 of Part B of the First Schedule" → those exact chunks. The most
+    specific match wins, and a citation resolving to more than 5 chunks (a whole
+    Schedule) is skipped.
+  - **definitions:** a quoted defined term, or a "what counts as / meaning of" question,
+    → the clause defining it. The 29 defined terms are parsed from the documents'
+    `“x” means` clauses.
+  - **commencement:** "come into force / commence / effective from" → commencement
+    provisions, narrowed to the document named (Rules → rule 1; Act → s1 and G.S.R.
+    843(E)). A plain "in force" doesn't trigger it, because "is rule 7 in force?" is
+    about rule 7.
+  - **corrections:** on a question about corrections, each retrieved corrigendum chunk
+    pulls in the chunk it corrected, and the reverse.
+  - **links:** Schedule row ↔ parent rule and Act section. Off; see the evidence below.
+- **New chunk metadata** (re-ingested; only these fields changed, chunk ids unchanged):
+  - `corrects` on corrigendum chunks: the chunk ids each patch was applied to. Before
+    this, it was known at ingest but discarded.
+  - `see_rules` on Schedule rows, from the "[See rule N]" line.
+
+  `in_force_date`, `section` / `rule` / `clause` / `item` and `corrected_by` already
+  existed. `text` already holds the corrected wording, so the index already prefers it.
+- **Evidence** (measured 2026-10-10, `dpdp-ablation`, each on top of hybrid + `fuse`;
+  recall@5 / MRR):
+
+  | Variant | overall | lookup (8) | xref (4) | table (5) | temporal (3) | corrigendum (2) | scenario (4) |
+  |---|---|---|---|---|---|---|---|
+  | fuse (D9) | 0.71 / 0.78 | 0.79 / 0.78 | 0.81 / 1.00 | 0.73 / 1.00 | 0.72 / 0.50 | 0.75 / 0.75 | 0.31 / 0.47 |
+  | + citations | 0.75 / 0.80 | 0.79 / 0.78 | 0.94 / 1.00 | 0.73 / 1.00 | 0.72 / 0.50 | 1.00 / 1.00 | 0.31 / 0.47 |
+  | + definitions | 0.75 / 0.82 | 0.92 / 0.91 | 0.81 / 1.00 | 0.73 / 1.00 | 0.72 / 0.50 | 0.75 / 0.75 | 0.31 / 0.47 |
+  | + commencement | 0.70 / 0.81 | 0.79 / 0.78 | 0.81 / 1.00 | 0.73 / 1.00 | 0.83 / 0.75 | 0.50 / 0.75 | 0.31 / 0.47 |
+  | + corrections | 0.73 / 0.80 | 0.79 / 0.78 | 0.81 / 1.00 | 0.73 / 1.00 | 0.72 / 0.50 | 1.00 / 1.00 | 0.31 / 0.47 |
+  | + links (0.25) | 0.72 / 0.68 | 0.79 / 0.72 | 0.73 / 0.83 | 0.80 / 0.70 | 0.72 / 0.53 | 0.75 / 0.75 | 0.36 / 0.42 |
+  | **+ all but links** | **0.80 / 0.87** | 0.92 / 0.91 | 0.94 / 1.00 | 0.73 / 1.00 | 0.83 / 0.75 | 1.00 / 1.00 | 0.31 / 0.47 |
+  | + all | 0.76 / 0.72 | 0.88 / 0.75 | 0.62 / 0.78 | 0.80 / 0.69 | 0.83 / 0.78 | 1.00 / 1.00 | 0.36 / 0.42 |
+
+  Two fixes came from the first pass:
+  - Citations initially boosted all 7 chunks of "the Third Schedule" and cost table a
+    gold chunk; that led to the 5-chunk cap.
+  - Corrections initially re-added the candidates themselves, so it had no effect; it
+    now adds only the partners.
+
+  Ablation variants are explicit: a variant with no `boost:` map runs with no boosts,
+  not with the defaults in `default.yaml`.
+- **Why links stays off.** It raises table recall (0.73 → 0.80) but costs MRR almost
+  everywhere. A parent rule or penalty row is linked to many questions where it's not the
+  answer. With cross-reference expansion, the answer model already gets the Act
+  sections a rule refers to (context_recall).
+- **Noise.** Every per-category gain here is one or two items:
+  - lookup-003 for definitions
+  - xref-001 and xref-002 for citations
+  - temporal-002 for commencement
+  - corrigendum-001 and corrigendum-002 for corrections and citations
+
+  The mechanisms are deterministic and keyed to explicit wording, so they won't help
+  questions without that wording; the signals are tested on hand-made chunks in
+  `tests/test_boost.py`. Lookup with explicit section citations has no golden items yet
+  ("Section 8(5)" only appears in an xref question), so the lookup gain comes from
+  definitions, not citations.
+- **Cost trade-off.** Pure Python over the candidate list, with no model calls and no
+  measurable latency. The patterns live in `configs/default.yaml`. The risk is false
+  triggers from wording, which the per-signal weights let you turn off.
+

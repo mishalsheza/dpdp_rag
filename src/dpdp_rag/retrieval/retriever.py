@@ -11,6 +11,7 @@ from dpdp_rag.config import load_system_config, resolve
 from dpdp_rag.generation.llm import LLMError
 from dpdp_rag.ingest.models import Chunk
 from dpdp_rag.retrieval.bm25 import BM25Index
+from dpdp_rag.retrieval.boost import MetadataBooster
 from dpdp_rag.retrieval.embeddings import Embedder, make_embedder
 from dpdp_rag.retrieval.filters import Filters
 from dpdp_rag.retrieval.fusion import rrf
@@ -67,6 +68,7 @@ class Retriever:
         self._bm25: BM25Index | None = None
         self._rewriter = rewriter
         self.rewrite_fallbacks = 0  # failed rewrites answered with the original query
+        self._booster: MetadataBooster | None = None
 
     # Components are built on first use so that, e.g., BM25-only runs need no Qdrant.
     @property
@@ -92,6 +94,12 @@ class Retriever:
         return self._index
 
     @property
+    def booster(self) -> MetadataBooster:
+        if self._booster is None:
+            self._booster = MetadataBooster(self.store, self.config["boost"])
+        return self._booster
+
+    @property
     def bm25(self) -> BM25Index:
         if self._bm25 is None:
             self._bm25 = BM25Index(
@@ -112,11 +120,14 @@ class Retriever:
         rerank: bool | None = None,
         cross_refs: bool | None = None,
         rewrite: str | None = None,
+        boost: dict[str, float] | None = None,
     ) -> list[RetrievedChunk]:
         """Top-k chunks for `query`, best first, followed by any cross-referenced chunks.
 
         `rewrite` is a query_rewrite strategy (see retrieval/rewrite.py). With more than
         one query, each is ranked on its own and the rankings are fused with RRF.
+        `boost` overrides `boost.weights` (retrieval/boost.py), which re-rank the fused
+        candidates using the original query and chunk metadata.
         Arguments left as None take their value from the config.
         """
         rcfg = self.config["retrieval"]
@@ -139,6 +150,12 @@ class Retriever:
             )
             per_stage = per_query[0][1]  # stage scores of the original query, for debugging
             per_stage["multi_query"] = dict(ranked)
+
+        if "boost" in self.config:
+            boosted = self.booster.apply(query, ranked, filters, boost)
+            if boosted is not ranked:
+                per_stage["boost"] = dict(boosted)
+                ranked = boosted
 
         results = [
             RetrievedChunk(

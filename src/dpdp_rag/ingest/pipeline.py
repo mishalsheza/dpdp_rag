@@ -119,7 +119,8 @@ def build(config: dict[str, Any]) -> IngestResult:
         if c.rule:
             c.in_force_date = rule_dates[c.rule]
         elif c.schedule:
-            dates = [rule_dates[r] for r in rules.schedule_rules[c.chunk_id]]
+            c.see_rules = list(rules.schedule_rules[c.chunk_id])
+            dates = [rule_dates[r] for r in c.see_rules]
             if len(set(dates)) > 1:
                 log.warning(
                     "%s: schedule cited by rules with different dates; using earliest", c.chunk_id

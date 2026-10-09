@@ -8,6 +8,7 @@ import pytest
 from dpdp_rag.config import OVERRIDES_ENV, load_config, merge, resolve
 from dpdp_rag.ingest.models import Chunk
 from dpdp_rag.ingest.pipeline import IngestResult, build
+from dpdp_rag.retrieval.boost import SIGNALS
 
 
 @pytest.fixture(autouse=True)
@@ -52,6 +53,9 @@ def retrieval_config() -> dict[str, Any]:
             "filters": {"doc_type": None, "rule": None, "section": None, "in_force_only": False},
             "cross_refs": {"enabled": False},
             "query_rewrite": {"strategy": "off"},  # no LLM calls in tests
+            # Boosts reorder results; tests of other behaviour keep the plain order.
+            # tests/test_boost.py turns them on.
+            "boost": {"weights": dict.fromkeys(SIGNALS, 0)},
         },
     )
 

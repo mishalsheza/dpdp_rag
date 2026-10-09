@@ -155,6 +155,10 @@ rewriter would silently measure the old retriever. To compare rewrite strategies
 without the answer model, use `uv run dpdp-ablation --only <variant>`. It reports
 overall and per-category recall and MRR, and a failed rewrite fails it.
 
+Metadata boosts (`boost.weights`, docs/DECISIONS.md D10) are also part of the ranked
+list. Ablation variants set them with a `boost:` map, so each signal can be measured on
+its own. A variant without one runs with no boosts.
+
 ### Answers (LLM-as-judge)
 
 The judge is given the following, in `prompts/judge_input.md`:

@@ -81,6 +81,10 @@ class Chunk(BaseModel):
     text_original: str | None = None
     text_corrected: str | None = None
     corrected_by: str | None = None
+    # Corrigendum chunks: the chunk_ids their patch was applied to (version link).
+    corrects: list[str] = Field(default_factory=list)
+    # Schedule rows: the rules named in the Schedule's "[See rule N]" line.
+    see_rules: list[str] = Field(default_factory=list)
     source_file: str | None = None
 
     # Line positions inside `text`, used to place corrigendum patches. Not serialised.
