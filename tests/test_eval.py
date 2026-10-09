@@ -212,13 +212,13 @@ def test_judge_request_uses_temperature_zero(eval_config) -> None:
 
     client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
     judge_cfg = eval_config["judge"]
-    assert judge_cfg["provider"] == "groq" and judge_cfg["model"] == "openai/gpt-oss-120b"
+    assert judge_cfg["provider"] == "groq" and judge_cfg["model"] == "openai/gpt-oss-20b"
     result = GroqLLM(judge_cfg, client=client).generate("s", "u", {"type": "object"})
     # Groq's finish_reason "stop" must map to "end_turn", or the judge rejects every reply
     # (the cause of run 20261009T142550Z, where every judge metric came out None).
     assert result.stop_reason == "end_turn"
     assert Completions.kwargs["temperature"] == 0.0
-    assert Completions.kwargs["model"] == "openai/gpt-oss-120b"
+    assert Completions.kwargs["model"] == "openai/gpt-oss-20b"
     assert Completions.kwargs["reasoning_effort"] == "low"
 
 

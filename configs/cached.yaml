@@ -1,0 +1,6 @@
+# Local eval runs with the LLM-call cache on (answers and judge calls are replayed from
+# data/cache/llm_calls.sqlite when the request is identical):
+#   uv run dpdp-eval --override configs/cached.yaml run
+eval:
+  llm_cache:
+    enabled: true

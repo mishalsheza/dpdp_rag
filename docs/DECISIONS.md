@@ -358,3 +358,22 @@ local CPU models, retrieval only, cross-reference expansion off.
 - **Trade-off.** The HTML table loses `st.dataframe` sorting. With 8 rows that's fine,
   and the all-runs view is still a sortable dataframe.
 
+## D12. Judge model: gpt-oss-20b (was gpt-oss-120b)
+
+- **Context.** The judge and the answerer were both `openai/gpt-oss-120b`. A full eval
+  needs about 325k tokens on that model (answers about 105k, judge about 220k), more than
+  the free tier's 200k per day, so no run could finish in one day. The answerer also
+  graded its own answers.
+- **Choice.** `openai/gpt-oss-20b` as the judge (temperature 0, `reasoning_effort:
+  low`). It accepts the same strict JSON schemas, which was checked with a live call. It
+  has its own daily limit, and it's a different model from the answerer.
+- **Alternatives.**
+  - `llama-3.1-8b-instant`: not available to this Groq organization (404).
+  - Keep the 120b judge and split runs over two days with the LLM cache.
+- **Trade-offs.**
+  - A smaller judge may be more lenient or miss subtle legal errors.
+  - Scores aren't comparable with 120b-judged runs; `judge_hash` changes.
+  - To measure this, the same answers (cached) will be re-judged by gpt-oss-120b with
+    `configs/judge_120b.yaml` once its daily limit resets, and the two judges compared
+    per item. `‹TBD›`
+

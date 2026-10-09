@@ -119,13 +119,15 @@ def eval_history(runs: list[dict[str, Any]]) -> pd.DataFrame:
                         "started_at": pd.to_datetime(run["started_at"]).tz_convert(None),
                         "config_hash": run.get("config_hash", "")[:8],
                         "git": git_badge(run),
+                        "judge": run.get("judge_model", "unknown"),
                         "metric": metric,
                         "value": float(value),
                         "n": run.get("n"),
                     }
                 )
     return pd.DataFrame(
-        rows, columns=["run_id", "started_at", "config_hash", "git", "metric", "value", "n"]
+        rows,
+        columns=["run_id", "started_at", "config_hash", "git", "judge", "metric", "value", "n"],
     )
 
 

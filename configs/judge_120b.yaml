@@ -1,0 +1,9 @@
+# Re-run the eval with the 120b judge, to compare it with the default gpt-oss-20b judge
+# (docs/DECISIONS.md D12). The cache is on, so the answers from the 20b-judged run are
+# replayed and only the judge calls are new:
+#   uv run dpdp-eval --override configs/judge_120b.yaml run
+eval:
+  llm_cache:
+    enabled: true
+  judge:
+    model: openai/gpt-oss-120b

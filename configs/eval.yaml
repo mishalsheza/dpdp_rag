@@ -12,10 +12,12 @@ retrieval:
   mrr_depth: 10  # ranks considered for MRR; a gold chunk below this counts as 0
 
 judge:
-  # Groq free tier, temperature 0 for reproducible judging. Same model as the answerer:
-  # it is the Groq model with strict structured outputs (see docs/EVAL.md, Limitations).
+  # Groq free tier, temperature 0 for reproducible judging. gpt-oss-20b, not the 120b
+  # answerer: it supports strict structured outputs, has its own daily token limit (the
+  # 120b one is spent on answers), and avoids the answerer grading itself. Compare with
+  # the 120b judge via configs/judge_120b.yaml (docs/DECISIONS.md D12).
   provider: groq
-  model: openai/gpt-oss-120b
+  model: openai/gpt-oss-20b
   temperature: 0
   reasoning_effort: low
   # Includes reasoning tokens. Groq's free tier allows 8000 tokens/min and counts this cap

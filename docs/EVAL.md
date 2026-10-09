@@ -226,13 +226,21 @@ parts with the LLM cache on (`llm_cache.enabled: true`); cached calls replay for
 
 ### Judge model and settings
 
-- **Model:** `openai/gpt-oss-120b` on Groq's free tier at **temperature 0** and
-  `reasoning_effort: low`, called through the same `GroqLLM` client as the answer model.
-  - Why this model: it is the Groq model with strict `json_schema` structured outputs,
-    so judge replies always match the score schema, and it accepts temperature 0.
+- **Model:** `openai/gpt-oss-20b` on Groq's free tier at **temperature 0** and
+  `reasoning_effort: low`, called through the same `GroqLLM` client as the answer model
+  (`openai/gpt-oss-120b`).
+  - Why this model: it supports Groq's strict `json_schema` structured outputs, so judge
+    replies always match the score schema, and it accepts temperature 0. Its daily
+    token limit is separate from the answerer's, and it isn't the model being graded.
+    `llama-3.1-8b-instant` was considered, but this Groq organization has no access to
+    it (404).
   - Price: $0 on the free tier. The limits are rate limits (tokens per minute and per
     day), so a large golden set may need to be run in parts (`--category`, `--limit`).
-  - It is the same model as the answerer; see Known limitations.
+  - Each run records the judge in `results.json` (`judge_model`; `judge_hash` covers the
+    whole judge config and rubrics), in `summary.md` and on the dashboard. Judge scores
+    are only comparable between runs with the same `judge_hash`.
+  - To compare judges, re-run with `--override configs/judge_120b.yaml`. Cached answers
+    are reused; only the judge calls are new.
 - **Output:** constrained by a JSON schema:
   - an integer `score` from the enum 1–5 with `reasoning`, or
   - a boolean `correct` with `reasoning`

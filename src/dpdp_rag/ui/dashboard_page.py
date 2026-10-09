@@ -133,7 +133,7 @@ else:
                 y_title="Score",
                 y_format=".2f",
                 mode=mode,
-                tooltip_extra=["run_id", "git", "n"],
+                tooltip_extra=["run_id", "judge", "git", "n"],
             ),
             width="stretch",
         )
@@ -153,14 +153,15 @@ else:
                     y_title="Mean score",
                     y_format=".2f",
                     mode=mode,
-                    tooltip_extra=["run_id", "git", "n"],
+                    tooltip_extra=["run_id", "judge", "git", "n"],
                 ),
                 width="stretch",
             )
     latest = runs[-1]
     st.subheader(f"Latest run by category: `{latest['run_id']}` (n={latest.get('n')})")
     git = dd.git_badge(latest)
-    st.caption(f"git `{git}`" if git != "unknown" else "git commit not recorded for this run")
+    git_note = f"git `{git}`" if git != "unknown" else "git commit not recorded"
+    st.caption(f"judge `{latest.get('judge_model', 'unknown')}` · {git_note}")
     if (latest.get("git") or {}).get("dirty"):
         st.warning(
             "This run was made from a dirty git tree (uncommitted changes), so its commit "
@@ -184,7 +185,7 @@ else:
             st.markdown("\n".join(f"- {r}" for r in reasons))
     with st.expander("Table view of all runs"):
         all_runs = hist.pivot_table(
-            index=["started_at", "run_id", "git"], columns="metric", values="value"
+            index=["started_at", "run_id", "judge", "git"], columns="metric", values="value"
         )
         st.dataframe(
             all_runs.round(2).reset_index(),
