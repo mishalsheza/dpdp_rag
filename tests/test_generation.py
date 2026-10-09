@@ -334,8 +334,24 @@ def test_groq_adapter_request_and_usage(api_config) -> None:
         "json_schema": {"name": "answer", "schema": schema, "strict": True},
     }
     assert kw["reasoning_effort"] == "medium" and "temperature" not in kw
-    assert result.text == '{"answer": "x"}' and result.stop_reason == "stop"
+    # finish_reason "stop" is normalised, so the judge, truncation check and cache accept it.
+    assert result.text == '{"answer": "x"}' and result.stop_reason == "end_turn"
     assert result.usage == Usage(input_tokens=40, output_tokens=22, cache_read_tokens=10)
+
+
+def test_groq_finish_reasons_are_normalised(api_config) -> None:
+    def stop_reason(finish: str) -> str | None:
+        response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="{}"), finish_reason=finish)],
+            usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1),
+            model="m",
+        )
+        client = SimpleNamespace(chat=SimpleNamespace(completions=_FakeMessages(response)))
+        return GroqLLM(api_config["llm"], client=client).generate("s", "u", {}).stop_reason
+
+    assert stop_reason("length") == "max_tokens"
+    assert stop_reason("content_filter") == "refusal"
+    assert stop_reason("tool_calls") == "tool_calls"  # unknown values pass through
 
 
 def test_schema_file_matches_answer_model() -> None:

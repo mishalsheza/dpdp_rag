@@ -134,7 +134,7 @@ uv run pytest                               # 268 tests, offline (LLM mocked)
 - The Gazette copy of the Act (`act_2023_gazette.pdf`) is kept for reference but not
   indexed, because it duplicates the India Code text.
 - Provenance of every file: [data/raw/SOURCES.md](data/raw/SOURCES.md).
-- **Golden set: 12 questions** across 8 categories (lookup, cross-reference, table,
+- **Golden set: 30 questions** across 8 categories (lookup, cross-reference, table,
   temporal, corrigendum, scenario, unanswerable, prompt injection). They were written one
   at a time from the source text by Claude Code (an AI assistant), not by a human, and
   are **awaiting human review**. Four come from real chat questions the system answered
@@ -148,7 +148,7 @@ uv run pytest                               # 268 tests, offline (LLM mocked)
 | Serving-path latency p50 / p99 (stub LLM, 10 users) | **16 / 96 ms** | measured, [docs/LOADTEST.md](docs/LOADTEST.md) |
 | Load-test throughput (stub LLM, 50 users) | **≥ 43 req/s**, 0 failures (not saturated) | measured, Apple M3, 1 worker |
 | Cost per request (Groq free tier) | **$0** (≈ 2.8K tokens per question) | `cost_usd` / `tokens` in `/ask` responses |
-| Cost per eval run (12 questions, uncached) | **$0** (free tier, rate-limited) | `results.json` → `cost` |
+| Cost per eval run (30 questions, uncached) | **$0** (free tier, rate-limited) | `results.json` → `cost` |
 
 Eval scores by category (`uv run dpdp-eval run`, N = 1 per category):
 

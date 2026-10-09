@@ -40,7 +40,7 @@ A gated metric fails when `baseline - current > max_drop + tolerance`:
 | Metric | max_drop | tolerance | Why this tolerance |
 |---|---|---|---|
 | recall@5, MRR | 0.05 | 0.01 | Retrieval is deterministic for the same chunks, model and index, so the tolerance only absorbs float rounding |
-| faithfulness, relevance (mean of 1–5 scores) | 0.25 | 0.15 | With ~8 items, one judge score moving one point shifts the mean by about 0.13. The tolerance absorbs a one-point wobble |
+| faithfulness, relevance (mean of 1–5 scores) | 0.25 | 0.15 | With ~30 items, one judge score moving one point shifts the mean by about 0.03. The tolerance absorbs a one-point wobble |
 
 The gate also fails if any item errored (`max_item_errors: 0`) or if a gated metric is
 missing from the run.

@@ -78,6 +78,10 @@ class AnthropicLLM:
         )
 
 
+# OpenAI-style finish_reason -> the stop_reason names callers check (judge, answer, cache).
+_GROQ_STOP_REASONS = {"stop": "end_turn", "length": "max_tokens", "content_filter": "refusal"}
+
+
 class GroqLLM:
     """Groq's OpenAI-compatible chat API. Reads GROQ_API_KEY from the environment.
 
@@ -112,7 +116,7 @@ class GroqLLM:
             text=choice.message.content or "",
             usage=usage,
             model=response.model,
-            stop_reason=choice.finish_reason,
+            stop_reason=_GROQ_STOP_REASONS.get(choice.finish_reason, choice.finish_reason),
         )
 
     def _create(self, system: str, user: str, schema: dict[str, Any]) -> Any:
