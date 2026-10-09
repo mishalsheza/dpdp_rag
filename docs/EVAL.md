@@ -264,6 +264,20 @@ parts with the LLM cache on (`llm_cache.enabled: true`); cached calls replay for
   citations, each judge verdict with its reasoning, cost, latency and any errors. An item
   that errors (LLM failure, or retrieval down) is recorded and the run continues. The
   `errors` count is shown in the summary.
+- **Git state:** `results.json` records `git: {sha, dirty}` at the start of the run.
+  `dirty` is true when `git status --porcelain` lists anything, untracked files
+  included. It is `null` when only `$GIT_SHA` is known (CI, containers). The summary
+  prints it, and the dashboard shows `abc1234 · dirty` in the run history and warns
+  when the latest run came from a dirty tree, since its commit doesn't identify the
+  code that produced it. Runs from before this change show "unknown".
+- **Dashboard table:** per-category scores are rounded to 2 decimals. An empty metric
+  shows "—", with the reason on hover and in a "Why are some cells empty?" list:
+  - no questions in the category
+  - no gold chunks (unanswerable)
+  - relevance applies to answerable questions only
+  - injection resistance applies to prompt-injection questions only
+  - no answer was generated
+  - the judge failed
 
 ## Baseline so far
 

@@ -28,6 +28,32 @@ def _labels_collide(df: pd.DataFrame, x: str, y: str, series: str, min_gap: floa
     return bool((last.diff().dropna().abs() / span < min_gap).any())
 
 
+def _time_axis(
+    df: pd.DataFrame, x: str
+) -> tuple[str, alt.Scale | alt.UndefinedType, str | alt.UndefinedType]:
+    """Label format and scale for a time axis. With one point (or points seconds apart),
+    Vega-Lite zooms to a millisecond domain and labels ticks like ".864", so the domain is
+    padded to at least `_MIN_SPAN` (two days for day buckets) and labels never go below
+    minutes. Returns (label format, scale, tick interval); daily data gets one tick per
+    day so a date label is never repeated."""
+    times = pd.to_datetime(df[x]) if len(df) else pd.Series(dtype="datetime64[ns]")
+    if times.empty:
+        return "%b %d", alt.Undefined, alt.Undefined
+    lo, hi = times.min(), times.max()
+    span = hi - lo
+    daily = bool((times == times.dt.normalize()).all())  # day / week buckets
+    fmt = "%b %d" if daily or span >= pd.Timedelta(days=2) else "%b %d %H:%M"
+    min_span = pd.Timedelta(days=2) if daily else _MIN_SPAN
+    ticks = "day" if fmt == "%b %d" and span < pd.Timedelta(days=60) else alt.Undefined
+    if span >= min_span:
+        return fmt, alt.Undefined, ticks
+    pad = (min_span - span) / 2
+    return fmt, alt.Scale(domain=[(lo - pad).isoformat(), (hi + pad).isoformat()]), ticks
+
+
+_MIN_SPAN = pd.Timedelta(hours=2)
+
+
 def line_chart(
     df: pd.DataFrame,
     *,
@@ -55,10 +81,19 @@ def line_chart(
         if series
         else alt.value(colors[0])
     )
+    x_format, x_scale, x_ticks = _time_axis(df, x)
     x_enc = alt.X(
         f"{x}:T",
         title=x_title,
-        axis=alt.Axis(grid=False, labelColor=TEXT[mode], titleColor=TEXT[mode]),
+        scale=x_scale,
+        axis=alt.Axis(
+            format=x_format,
+            tickCount=x_ticks,
+            grid=False,
+            labelColor=TEXT[mode],
+            titleColor=TEXT[mode],
+            labelOverlap=True,
+        ),
     )
     y_enc = alt.Y(
         f"{y}:Q",
@@ -73,7 +108,7 @@ def line_chart(
         ),
         scale=alt.Scale(type="log") if log_scale else alt.Undefined,
     )
-    tooltip = [alt.Tooltip(f"{x}:T", title="time")]
+    tooltip = [alt.Tooltip(f"{x}:T", title="time", format="%Y-%m-%d %H:%M")]
     if series:
         tooltip.append(alt.Tooltip(f"{series}:N", title="series"))
     tooltip += [alt.Tooltip(f"{y}:Q", title=y_title, format=y_format or ".3f")]

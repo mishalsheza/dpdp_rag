@@ -18,7 +18,7 @@ from dpdp_rag.eval.cli import main as cli_main
 from dpdp_rag.eval.coverage import report as coverage_report
 from dpdp_rag.eval.golden import GoldenItem, GoldenSetError, load_golden, validate
 from dpdp_rag.eval.judge import Judge, JudgeInput, JudgeUnavailable
-from dpdp_rag.eval.report import judge_banner
+from dpdp_rag.eval.report import git_label, judge_banner
 from dpdp_rag.eval.retrieval_metrics import (
     first_gold_rank,
     hit_at_k,
@@ -405,6 +405,22 @@ def test_judge_scoring_nothing_is_unavailable(eval_config, runner) -> None:
     run = r.run(today=date(2026, 10, 9))
     assert run.results["judge_status"]["status"] == "unavailable"
     assert "JUDGE UNAVAILABLE" in run.summary_path.read_text()
+
+
+def test_run_records_git_state(runner, monkeypatch) -> None:
+    monkeypatch.setenv("GIT_SHA", "0123456789abcdef")  # CI style: commit known, dirty unknown
+    r, _, _ = runner()
+    run = r.run(today=date(2026, 10, 9))
+    assert run.results["git"] == {"sha": "0123456789abcdef", "dirty": None}
+    assert "- Git: `0123456`" in run.summary_path.read_text()
+
+
+def test_git_label() -> None:
+    assert git_label({"git": {"sha": "abcdef12345", "dirty": True}}) == (
+        "`abcdef1` (dirty: uncommitted changes)"
+    )
+    assert git_label({"git": {"sha": "abcdef12345", "dirty": False}}) == "`abcdef1`"
+    assert git_label({}) == "unknown"
 
 
 def test_banner_inferred_for_runs_without_judge_status() -> None:

@@ -32,10 +32,12 @@ def config_hash(config: dict[str, Any]) -> str:
     return hash_config(config, prompt_paths(config))
 
 
-def git_sha() -> str:
-    """$GIT_SHA if set, else `git rev-parse HEAD` (+ "-dirty" if changed), else "unknown"."""
+def git_state() -> tuple[str, bool | None]:
+    """(commit, dirty). $GIT_SHA wins (CI and containers; dirty unknown -> None). Dirty
+    means `git status --porcelain` lists anything, untracked files included. Without git:
+    ("unknown", None)."""
     if os.environ.get("GIT_SHA"):
-        return os.environ["GIT_SHA"]
+        return os.environ["GIT_SHA"], None
     try:
         sha = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -54,5 +56,11 @@ def git_sha() -> str:
             timeout=5,
         ).stdout
     except (OSError, subprocess.SubprocessError):
-        return "unknown"
-    return f"{sha}-dirty" if dirty.strip() else sha
+        return "unknown", None
+    return sha, bool(dirty.strip())
+
+
+def git_sha() -> str:
+    """$GIT_SHA if set, else `git rev-parse HEAD` (+ "-dirty" if changed), else "unknown"."""
+    sha, dirty = git_state()
+    return f"{sha}-dirty" if dirty else sha

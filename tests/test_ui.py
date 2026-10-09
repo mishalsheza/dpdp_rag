@@ -138,6 +138,7 @@ def _eval_runs(root: Path) -> None:
             "started_at": f"2026-10-0{i + 1}T10:00:00+00:00",
             "n": 8,
             "config_hash": f"hash{i}" * 4,
+            **({"git": {"sha": "abcdef1234567", "dirty": True}} if i else {}),
             "overall": {
                 "retrieval": {"recall@5": r5, "mrr": 0.5},
                 "answers": {
@@ -186,6 +187,90 @@ def test_eval_history_and_categories(tmp_path) -> None:
     assert set(hist["metric"]) == set(dd.EVAL_SCORES)
     table = dd.category_table(runs[-1])
     assert table.loc[0, "category"] == "lookup" and table.loc[0, "recall@5"] == 1.0
+    assert hist["git"].tolist()[-1] == "abcdef1 · dirty"
+    assert dd.git_badge(runs[0]) == "unknown"
+
+
+def _cat_run() -> dict[str, Any]:
+    """A run with a judge failure on lookup, an unanswerable category and 4-decimal values."""
+    answers = {"faithfulness_mean": None, "relevance_mean": None, "injection_resisted": None}
+    return {
+        "by_category": {
+            "lookup": {
+                "n": 1,
+                "retrieval": {"recall@5": 0.91666, "mrr": 0.5},
+                "answers": {**answers, "refusal_correctness": 1.0, "judge_failed": 2},
+            },
+            "unanswerable": {
+                "n": 1,
+                "retrieval": {"recall@5": None, "mrr": None},
+                "answers": {**answers, "refusal_correctness": None},
+            },
+            "table": {"n": 0, "retrieval": {}, "answers": {}},
+        },
+        "items": [
+            {
+                "category": "lookup",
+                "answerable": True,
+                "gold_chunk_ids": ["x"],
+                "answer": {"text": "a", "error": None},
+                "errors": [],
+                "judge": {},
+            },
+            {
+                "category": "unanswerable",
+                "answerable": False,
+                "gold_chunk_ids": [],
+                "answer": {"error": "Groq API error 429"},
+                "errors": ["answer: 429"],
+                "judge": {},
+            },
+        ],
+    }
+
+
+def test_category_cells_round_and_explain_empty_metrics() -> None:
+    rows = {r["category"]: r for r in dd.category_cells(_cat_run())}
+    lookup, unans, table = rows["lookup"], rows["unanswerable"], rows["table"]
+    assert lookup["recall@5"] == {"text": "0.92", "tooltip": None}
+    assert lookup["MRR"]["text"] == "0.50" and lookup["refusal correctness"]["text"] == "1.00"
+    assert "judge failed" in lookup["faithfulness"]["tooltip"]
+    assert "prompt-injection" in lookup["injection resisted"]["tooltip"]
+    assert unans["recall@5"]["text"] == "—" and "No gold chunks" in unans["recall@5"]["tooltip"]
+    assert "answerable questions" in unans["relevance"]["tooltip"]
+    assert "No answer was generated" in unans["refusal correctness"]["tooltip"]
+    assert table["MRR"]["tooltip"] == "No questions in this category."
+    html = dd.category_table_html(_cat_run())
+    assert 'title="No gold chunks' in html and ">0.92<" in html and "None" not in html
+
+
+def _x_enc(spec: dict[str, Any]) -> dict[str, Any]:
+    """The x encoding of the line layer (the hover rule's has no axis)."""
+    return next(
+        lyr["encoding"]["x"]
+        for lyr in spec["layer"]
+        if "axis" in lyr.get("encoding", {}).get("x", {})
+    )
+
+
+def test_time_axis_never_zooms_to_milliseconds() -> None:
+    import pandas as pd
+
+    one = pd.DataFrame({"t": [pd.Timestamp("2026-10-09T14:25:50.864998")], "v": [1.0]})
+    spec = line_chart(one, x="t", y="v", series=None, series_order=["v"], y_title="x").to_dict()
+    x = _x_enc(spec)
+    assert x["axis"]["format"] == "%b %d %H:%M"
+    lo, hi = (pd.Timestamp(d) for d in x["scale"]["domain"])
+    assert hi - lo == pd.Timedelta(hours=2)
+    days = pd.DataFrame({"t": [pd.Timestamp("2026-10-09")], "v": [1.0]})
+    spec = line_chart(days, x="t", y="v", series=None, series_order=["v"], y_title="x").to_dict()
+    x = _x_enc(spec)
+    assert x["axis"]["format"] == "%b %d" and "scale" in x
+    assert x["axis"]["tickCount"] == "day"  # one label per day, never "Oct 08 Oct 08"
+    week = line_chart(
+        _frame(), x="t", y="v", series="s", series_order=["p50", "p99"], y_title="x"
+    ).to_dict()
+    assert "scale" not in _x_enc(week)  # enough span: Vega picks the domain
 
 
 # -- charts --------------------------------------------------------------------------------
@@ -278,6 +363,8 @@ def test_dashboard_page_renders(ui_overrides) -> None:
     assert tiles["Requests"] == "11" and tiles["Refusal rate"] == "18%"
     assert [h.value for h in at.subheader][:3] == ["Latency", "Cost per request", "Refusal rate"]
     assert any("run1" in h.value for h in at.subheader)
+    assert any("dirty git tree" in w.value for w in at.warning)
+    assert any("<table" in m.value for m in at.markdown)
 
 
 def test_chat_page_renders_answer_with_badges(ui_overrides, monkeypatch) -> None:

@@ -79,6 +79,15 @@ def judge_status(items: Sequence[dict[str, Any]]) -> dict[str, Any]:
     return {"status": status, "scored": scored, "failed": failed, "unjudged_items": unjudged}
 
 
+def git_label(results: dict[str, Any]) -> str:
+    """ "`abc1234`", "`abc1234` (dirty: uncommitted changes)" or "unknown"."""
+    g = results.get("git") or {}
+    if not g.get("sha") or g["sha"] == "unknown":
+        return "unknown"
+    label = f"`{g['sha'][:7]}`"
+    return label + " (dirty: uncommitted changes)" if g.get("dirty") else label
+
+
 def judge_banner(results: dict[str, Any]) -> str | None:
     """A one-line warning when judge metrics are missing or partial (None when healthy).
     Runs from before judge_status existed are inferred from their errors."""
@@ -114,6 +123,7 @@ def summary_markdown(results: dict[str, Any]) -> str:
         "",
         f"- Golden set: `{results['golden_file']}` ({results['n']} questions)",
         f"- System config_hash: `{results['config_hash']}`",
+        f"- Git: {git_label(results)}",
         f"- Judge hash: `{results['judge_hash']}`",
         f"- Answer model: `{results['answer_model']}` · Judge model: `{results['judge_model']}`",
         f"- Cost: answers ${results['cost']['answer_usd']:.4f}, judge "

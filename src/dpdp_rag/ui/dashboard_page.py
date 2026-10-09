@@ -133,36 +133,64 @@ else:
                 y_title="Score",
                 y_format=".2f",
                 mode=mode,
-                tooltip_extra=["run_id", "n"],
+                tooltip_extra=["run_id", "git", "n"],
             ),
             width="stretch",
         )
     with right:
         st.subheader("Answer quality (judge, 1–5)")
-        st.altair_chart(
-            line_chart(
-                hist[hist["metric"].isin(scale5)],
-                x="started_at",
-                y="value",
-                series="metric",
-                series_order=scale5,
-                y_title="Mean score",
-                y_format=".2f",
-                mode=mode,
-                tooltip_extra=["run_id", "n"],
-            ),
-            width="stretch",
-        )
+        judged = hist[hist["metric"].isin(scale5)]
+        if judged.empty:
+            st.info("No run has judge scores yet (see the banner on the latest run).")
+        else:
+            st.altair_chart(
+                line_chart(
+                    judged,
+                    x="started_at",
+                    y="value",
+                    series="metric",
+                    series_order=scale5,
+                    y_title="Mean score",
+                    y_format=".2f",
+                    mode=mode,
+                    tooltip_extra=["run_id", "git", "n"],
+                ),
+                width="stretch",
+            )
     latest = runs[-1]
     st.subheader(f"Latest run by category: `{latest['run_id']}` (n={latest.get('n')})")
+    git = dd.git_badge(latest)
+    st.caption(f"git `{git}`" if git != "unknown" else "git commit not recorded for this run")
+    if (latest.get("git") or {}).get("dirty"):
+        st.warning(
+            "This run was made from a dirty git tree (uncommitted changes), so its commit "
+            "does not identify the code that produced it.",
+            icon="⚠️",
+        )
     if banner := judge_banner(latest):
         st.error(banner, icon="⚠️")
-    st.dataframe(dd.category_table(latest), hide_index=True, width="stretch")
+    st.markdown(dd.category_table_html(latest), unsafe_allow_html=True)
+    st.caption("Scores rounded to 2 decimals. Hover a — to see why that metric is empty.")
+    reasons = sorted(
+        {
+            f"**{row['category']}** · {col}: {row[col]['tooltip']}"
+            for row in dd.category_cells(latest)
+            for col, _, _ in dd.CATEGORY_COLUMNS
+            if row[col]["tooltip"]
+        }
+    )
+    if reasons:
+        with st.expander("Why are some cells empty?"):
+            st.markdown("\n".join(f"- {r}" for r in reasons))
     with st.expander("Table view of all runs"):
+        all_runs = hist.pivot_table(
+            index=["started_at", "run_id", "git"], columns="metric", values="value"
+        )
         st.dataframe(
-            hist.pivot_table(
-                index=["started_at", "run_id"], columns="metric", values="value"
-            ).reset_index(),
+            all_runs.round(2).reset_index(),
             hide_index=True,
             width="stretch",
+            column_config={
+                "git": st.column_config.TextColumn(help="· dirty = uncommitted changes")
+            },
         )

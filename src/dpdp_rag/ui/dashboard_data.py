@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import json
 import sqlite3
 from pathlib import Path
@@ -117,30 +118,133 @@ def eval_history(runs: list[dict[str, Any]]) -> pd.DataFrame:
                         "run_id": run["run_id"],
                         "started_at": pd.to_datetime(run["started_at"]).tz_convert(None),
                         "config_hash": run.get("config_hash", "")[:8],
+                        "git": git_badge(run),
                         "metric": metric,
                         "value": float(value),
                         "n": run.get("n"),
                     }
                 )
     return pd.DataFrame(
-        rows, columns=["run_id", "started_at", "config_hash", "metric", "value", "n"]
+        rows, columns=["run_id", "started_at", "config_hash", "git", "metric", "value", "n"]
     )
 
 
-def category_table(run: dict[str, Any]) -> pd.DataFrame:
+# (column, results group, key) for the per-category table, in display order.
+CATEGORY_COLUMNS = [
+    ("recall@5", "retrieval", "recall@5"),
+    ("MRR", "retrieval", "mrr"),
+    ("faithfulness", "answers", "faithfulness_mean"),
+    ("relevance", "answers", "relevance_mean"),
+    ("refusal correctness", "answers", "refusal_correctness"),
+    ("injection resisted", "answers", "injection_resisted"),
+]
+DASH = "—"
+
+
+def _items(run: dict[str, Any], cat: str) -> list[dict[str, Any]]:
+    return [i for i in run.get("items", []) if i.get("category") == cat]
+
+
+def _judge_failed(items: list[dict[str, Any]], agg: dict[str, Any]) -> bool:
+    if agg.get("answers", {}).get("judge_failed"):
+        return True
+    # Runs written before judge_failed existed: look for judge errors on the items.
+    return any(e.startswith("judge ") for i in items for e in i.get("errors", []))
+
+
+def missing_reason(run: dict[str, Any], cat: str, column: str) -> str:
+    """Why a per-category metric is empty, in words for a tooltip."""
+    agg = run.get("by_category", {}).get(cat, {})
+    items = _items(run, cat)
+    if not agg.get("n"):
+        return "No questions in this category."
+    group = dict((c, g) for c, g, _ in CATEGORY_COLUMNS)[column]
+    if group == "retrieval":
+        if items and all(not i.get("gold_chunk_ids") for i in items):
+            return (
+                "No gold chunks: these questions have no answer in the documents, so "
+                "retrieval isn't scored."
+            )
+        return "Retrieval failed for every question in this category (see item errors)."
+    if column == "injection resisted" and not any(
+        i.get("category") == "prompt_injection" for i in items
+    ):
+        return "Injection resistance is scored only for prompt-injection questions."
+    if column == "relevance" and items and not any(i.get("answerable") for i in items):
+        return "Relevance is scored only for answerable questions."
+    if items and all((i.get("answer") or {}).get("error") or not i.get("answer") for i in items):
+        return "No answer was generated (answer-model errors), so nothing was judged."
+    if _judge_failed(items, agg):
+        return "The judge failed for this category; see the banner and item errors."
+    if column == "faithfulness":
+        return "Every answer was the fixed 'can't answer' refusal, which makes no claims."
+    return "Not scored for this category."
+
+
+def category_cells(run: dict[str, Any]) -> list[dict[str, Any]]:
+    """One row per category: n and each metric as {"text", "tooltip"}. Values are
+    rounded to 2 decimals; an empty metric is "—" with the reason as its tooltip."""
     rows = []
     for cat, agg in run.get("by_category", {}).items():
-        r, a = agg.get("retrieval", {}), agg.get("answers", {})
+        row: dict[str, Any] = {"category": cat, "n": agg.get("n")}
+        for column, group, key in CATEGORY_COLUMNS:
+            value = (agg.get(group) or {}).get(key)
+            row[column] = (
+                {"text": f"{value:.2f}", "tooltip": None}
+                if value is not None
+                else {"text": DASH, "tooltip": missing_reason(run, cat, column)}
+            )
+        rows.append(row)
+    return rows
+
+
+def category_table_html(run: dict[str, Any]) -> str:
+    """The per-category table as HTML; empty cells carry their reason in a title tooltip."""
+
+    def cell(c: dict[str, Any]) -> str:
+        if c["tooltip"] is None:
+            return f'<td style="text-align:right">{c["text"]}</td>'
+        tip = html.escape(c["tooltip"], quote=True)
+        return (
+            f'<td style="text-align:right"><span title="{tip}" '
+            f'style="cursor:help;opacity:0.6">{DASH}</span></td>'
+        )
+
+    head = "".join(
+        f'<th style="text-align:{"left" if i == 0 else "right"}">{h}</th>'
+        for i, h in enumerate(["category", "n", *[c for c, _, _ in CATEGORY_COLUMNS]])
+    )
+    body = "".join(
+        f"<tr><td>{html.escape(r['category'])}</td>"
+        f'<td style="text-align:right">{r["n"]}</td>'
+        + "".join(cell(r[c]) for c, _, _ in CATEGORY_COLUMNS)
+        + "</tr>"
+        for r in category_cells(run)
+    )
+    return f'<table style="width:100%"><thead><tr>{head}</tr></thead><tbody>{body}</tbody></table>'
+
+
+def category_table(run: dict[str, Any]) -> pd.DataFrame:
+    """The per-category metrics as numbers (None where empty), rounded to 2 decimals."""
+    rows = []
+    for r in category_cells(run):
         rows.append(
             {
-                "category": cat,
-                "n": agg.get("n"),
-                "recall@5": r.get("recall@5"),
-                "MRR": r.get("mrr"),
-                "faithfulness": a.get("faithfulness_mean"),
-                "relevance": a.get("relevance_mean"),
-                "refusal correctness": a.get("refusal_correctness"),
-                "injection resisted": a.get("injection_resisted"),
+                "category": r["category"],
+                "n": r["n"],
+                **{
+                    c: None if r[c]["tooltip"] is not None else float(r[c]["text"])
+                    for c, _, _ in CATEGORY_COLUMNS
+                },
             }
         )
     return pd.DataFrame(rows)
+
+
+def git_badge(run: dict[str, Any]) -> str:
+    """ "abc1234", "abc1234 · dirty" or "unknown" (runs before git was recorded, or CI)."""
+    g = run.get("git") or {}
+    sha = g.get("sha")
+    if not sha or sha == "unknown":
+        return "unknown"
+    return f"{sha[:7]} · dirty" if g.get("dirty") else sha[:7]

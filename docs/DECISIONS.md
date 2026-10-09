@@ -338,3 +338,23 @@ local CPU models, retrieval only, cross-reference expansion off.
   measurable latency. The patterns live in `configs/default.yaml`. The risk is false
   triggers from wording, which the per-signal weights let you turn off.
 
+## D11. Dashboard: honest empty cells, readable time axes, dirty-tree flag
+
+- **Context.** The metrics page showed a stray ".864" label, "None" in the category
+  table, 4-decimal values, and gave no sign that a run came from uncommitted code.
+- **Cause of ".864".** With one run, or runs seconds apart, Vega-Lite zooms the time
+  axis to a millisecond domain and labels ticks with the milliseconds of `started_at`
+  (`14:25:50.864998`). The time axes now:
+  - use an explicit format, never finer than minutes
+  - pad a too-narrow domain to 2 hours, or 2 days for day buckets
+  - use one tick per day for daily data
+- **Choice.**
+  - The category table is HTML, so each "—" can carry a `title` tooltip with its reason.
+    `st.dataframe` can't attach per-cell tooltips. The same reasons are listed in an
+    expander for touch screens.
+  - The reasons come from `dashboard_data.missing_reason`, which reads the run's items
+    and `judge_failed`, so "not applicable" and "broken" are told apart.
+  - Eval runs record git state, and the dashboard flags dirty runs.
+- **Trade-off.** The HTML table loses `st.dataframe` sorting. With 8 rows that's fine,
+  and the all-runs view is still a sortable dataframe.
+

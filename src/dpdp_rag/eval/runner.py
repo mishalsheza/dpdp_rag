@@ -10,7 +10,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any
 
-from dpdp_rag.api.versioning import config_hash, hash_config
+from dpdp_rag.api.versioning import config_hash, git_state, hash_config
 from dpdp_rag.config import load_config, resolve
 from dpdp_rag.eval.golden import GoldenItem, load_golden
 from dpdp_rag.eval.judge import Judge, JudgeInput, judge_prompt_paths
@@ -226,6 +226,7 @@ class EvalRunner:
         items = items[:limit] if limit else items
         self.today = today or self.today
         jhash = judge_hash(self.cfg)
+        sha, dirty = git_state()  # before the run writes anything
         started = datetime.now(UTC)
         run_id = f"{started.strftime('%Y%m%dT%H%M%SZ')}_{self.config_hash[:8]}"
         pass_threshold = float(self.cfg["judge"]["pass_threshold"])
@@ -269,6 +270,8 @@ class EvalRunner:
                 "n": len(item_results),
                 "config_hash": self.config_hash,
                 "judge_hash": jhash,
+                # dirty: uncommitted changes when the run started (None = unknown, e.g. CI)
+                "git": {"sha": sha, "dirty": dirty},
                 "answer_model": self.system["llm"]["model"],
                 "judge_model": self.cfg["judge"]["model"],
                 "settings": {
