@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-from dpdp_rag.config import load_config, resolve
+from dpdp_rag.config import load_config, merge, resolve
 from dpdp_rag.ingest.models import Chunk
 from dpdp_rag.ingest.pipeline import IngestResult, build
 
@@ -25,3 +26,23 @@ def ingest(config: dict[str, Any]) -> IngestResult:
 @pytest.fixture(scope="session")
 def by_id(ingest: IngestResult) -> dict[str, Chunk]:
     return {c.chunk_id: c for c in ingest.chunks}
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+TINY_CHUNKS = FIXTURES / "chunks_tiny.jsonl"
+
+
+@pytest.fixture
+def retrieval_config() -> dict[str, Any]:
+    """configs/default.yaml pointed at the tiny fixture, with offline components only."""
+    return merge(
+        load_config("default.yaml"),
+        {
+            "data": {"chunks_file": str(TINY_CHUNKS)},
+            "qdrant": {"location": ":memory:", "auto_index": True, "url_env": "DPDP_TEST_NO_URL"},
+            "embedding": {"provider": "hash", "dim": 256},
+            "reranker": {"enabled": False},
+            "filters": {"doc_type": None, "rule": None, "section": None, "in_force_only": False},
+            "cross_refs": {"enabled": False},
+        },
+    )

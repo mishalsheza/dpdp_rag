@@ -1,0 +1,14 @@
+# Local Qdrant for development: `docker compose up -d`, then `uv run dpdp-index`.
+# For Qdrant Cloud, set QDRANT_URL and QDRANT_API_KEY in .env instead.
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.13.4
+    ports:
+      - "6333:6333"  # REST
+      - "6334:6334"  # gRPC
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:

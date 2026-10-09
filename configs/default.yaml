@@ -1,0 +1,65 @@
+# Retrieval configuration. Every option used by dpdp_rag.retrieval is set here.
+data:
+  chunks_file: data/processed/chunks.jsonl
+
+qdrant:
+  # If the env var named by url_env is set (e.g. a Qdrant Cloud URL), it is used together
+  # with the API key from api_key_env. Otherwise `location` (":memory:" or a local path)
+  # is used when set, else `local_url` (the docker-compose instance).
+  url_env: QDRANT_URL
+  api_key_env: QDRANT_API_KEY
+  local_url: http://localhost:6333
+  location: null
+  collection: dpdp_chunks
+  # Build the collection on first use if it is missing or out of date with chunks_file.
+  auto_index: false
+  upsert_batch_size: 64
+  # Payload fields indexed in Qdrant for filtering.
+  keyword_indexes: [doc_type, rule, section, sub_section, schedule, chunk_id]
+  integer_indexes: [in_force_int]
+
+embedding:
+  provider: fastembed  # fastembed | hash (hash: offline, deterministic, for tests only)
+  model: BAAI/bge-small-en-v1.5
+  dim: null  # required for provider "hash"; read from the model otherwise
+  batch_size: 32
+  # What gets embedded for each chunk. Fields are chunk metadata; missing ones render empty.
+  document_template: "{title}\n{text}"
+
+bm25:
+  k1: 1.5
+  b: 0.75
+  # Tokens kept: lowercase alphanumerics. Stopwords are removed.
+  stopwords: [a, an, and, are, as, at, be, by, for, from, has, in, is, it, its, of, on, or,
+              such, that, the, this, to, under, was, which, with, shall, any, may]
+
+retrieval:
+  mode: hybrid  # dense | bm25 | hybrid
+  k: 5
+  candidates: 50  # results taken from each retriever before fusion / reranking
+  rrf_k: 60  # reciprocal rank fusion constant: score = sum(1 / (rrf_k + rank))
+
+reranker:
+  enabled: false
+  provider: fastembed
+  model: Xenova/ms-marco-MiniLM-L-6-v2
+  top_n: 20  # how many fused candidates are rescored
+  document_template: "{title}\n{text}"
+
+filters:
+  doc_type: null  # act | rules | notification | corrigendum, or a list
+  rule: null  # e.g. "12"
+  section: null  # e.g. "9"
+  in_force_only: false  # keep chunks with in_force_date <= today
+  today: null  # ISO date overriding the system date for in_force_only
+
+cross_refs:
+  enabled: true
+  # For each retrieved chunk, fetch the Act chunks named in its refers_to_provisions
+  # (e.g. rule 12(1) -> section 9(1), 9(3)).
+  max_per_chunk: 4
+  # An expanded chunk scores parent_score * score_factor.
+  score_factor: 0.5
+  # Which filters also apply to expanded chunks (doc_type/rule/section would remove the
+  # referenced Act sections, so only the date filter applies by default).
+  apply_in_force_filter: true
