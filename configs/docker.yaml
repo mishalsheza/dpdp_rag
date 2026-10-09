@@ -1,0 +1,6 @@
+# Overrides used inside docker-compose (DPDP_CONFIG_OVERRIDES=docker.yaml).
+# Qdrant is reached through QDRANT_URL=http://qdrant:6333, set in docker-compose.yml.
+api:
+  host: 0.0.0.0
+ui:
+  api_url: http://api:8000

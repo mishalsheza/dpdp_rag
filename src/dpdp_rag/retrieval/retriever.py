@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any
 
-from dpdp_rag.config import load_config, resolve
+from dpdp_rag.config import load_system_config, resolve
 from dpdp_rag.ingest.models import Chunk
 from dpdp_rag.retrieval.bm25 import BM25Index
 from dpdp_rag.retrieval.embeddings import Embedder, make_embedder
@@ -196,7 +196,7 @@ class Retriever:
 
 @lru_cache(maxsize=4)
 def get_retriever(config_name: str = "default.yaml") -> Retriever:
-    return Retriever(load_config(config_name))
+    return Retriever(load_system_config(config_name))
 
 
 def retrieve(query: str, k: int | None = None, **kwargs: Any) -> list[RetrievedChunk]:

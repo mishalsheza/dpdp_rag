@@ -1,0 +1,542 @@
+{
+  "n_items": 7,
+  "n_structure_chunks": 364,
+  "n_fixed_chunks": 152,
+  "embedding_model": "BAAI/bge-small-en-v1.5",
+  "reranker_model": "Xenova/ms-marco-MiniLM-L-6-v2",
+  "settings": {
+    "golden_file": "data/golden.jsonl",
+    "ks": [
+      1,
+      3,
+      5
+    ],
+    "mrr_depth": 10,
+    "variants": [
+      {
+        "name": "dense",
+        "chunks": "structure",
+        "mode": "dense",
+        "rerank": false
+      },
+      {
+        "name": "bm25",
+        "chunks": "structure",
+        "mode": "bm25",
+        "rerank": false
+      },
+      {
+        "name": "hybrid",
+        "chunks": "structure",
+        "mode": "hybrid",
+        "rerank": false
+      },
+      {
+        "name": "hybrid + reranker",
+        "chunks": "structure",
+        "mode": "hybrid",
+        "rerank": true
+      },
+      {
+        "name": "dense (fixed chunks)",
+        "chunks": "fixed",
+        "mode": "dense",
+        "rerank": false
+      },
+      {
+        "name": "hybrid (fixed chunks)",
+        "chunks": "fixed",
+        "mode": "hybrid",
+        "rerank": false
+      }
+    ],
+    "fixed_chunks": {
+      "size_chars": 1000,
+      "overlap_chars": 200,
+      "min_overlap": 0.5
+    },
+    "output": "data/ablation/results.json"
+  },
+  "variants": [
+    {
+      "variant": "dense",
+      "name": "dense",
+      "chunks": "structure",
+      "mode": "dense",
+      "rerank": false,
+      "n": 7,
+      "metrics": {
+        "recall@1": 0.4642857142857143,
+        "recall@3": 0.6190476190476192,
+        "recall@5": 0.6904761904761905,
+        "hit_rate@5": 1.0,
+        "mrr": 0.9285714285714286
+      },
+      "items": [
+        {
+          "id": "lookup-001",
+          "category": "lookup",
+          "recall@1": 1.0,
+          "recall@3": 1.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "xref-001",
+          "category": "cross_reference",
+          "recall@1": 0.25,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "table-001",
+          "category": "table",
+          "recall@1": 0.5,
+          "recall@3": 1.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "temporal-001",
+          "category": "temporal",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "corrigendum-001",
+          "category": "corrigendum",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "scenario-001",
+          "category": "scenario",
+          "recall@1": 0.0,
+          "recall@3": 0.3333333333333333,
+          "recall@5": 0.3333333333333333,
+          "hit_rate@5": 1.0,
+          "mrr": 0.5
+        },
+        {
+          "id": "injection-001",
+          "category": "prompt_injection",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        }
+      ]
+    },
+    {
+      "variant": "bm25",
+      "name": "bm25",
+      "chunks": "structure",
+      "mode": "bm25",
+      "rerank": false,
+      "n": 7,
+      "metrics": {
+        "recall@1": 0.21428571428571427,
+        "recall@3": 0.5,
+        "recall@5": 0.5,
+        "hit_rate@5": 0.7142857142857143,
+        "mrr": 0.5158730158730159
+      },
+      "items": [
+        {
+          "id": "lookup-001",
+          "category": "lookup",
+          "recall@1": 1.0,
+          "recall@3": 1.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "xref-001",
+          "category": "cross_reference",
+          "recall@1": 0.0,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 0.5
+        },
+        {
+          "id": "table-001",
+          "category": "table",
+          "recall@1": 0.0,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 0.5
+        },
+        {
+          "id": "temporal-001",
+          "category": "temporal",
+          "recall@1": 0.0,
+          "recall@3": 0.0,
+          "recall@5": 0.0,
+          "hit_rate@5": 0.0,
+          "mrr": 0.1111111111111111
+        },
+        {
+          "id": "corrigendum-001",
+          "category": "corrigendum",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "scenario-001",
+          "category": "scenario",
+          "recall@1": 0.0,
+          "recall@3": 0.0,
+          "recall@5": 0.0,
+          "hit_rate@5": 0.0,
+          "mrr": 0.0
+        },
+        {
+          "id": "injection-001",
+          "category": "prompt_injection",
+          "recall@1": 0.0,
+          "recall@3": 1.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 0.5
+        }
+      ]
+    },
+    {
+      "variant": "hybrid",
+      "name": "hybrid",
+      "chunks": "structure",
+      "mode": "hybrid",
+      "rerank": false,
+      "n": 7,
+      "metrics": {
+        "recall@1": 0.39285714285714285,
+        "recall@3": 0.5,
+        "recall@5": 0.6785714285714286,
+        "hit_rate@5": 0.8571428571428571,
+        "mrr": 0.761904761904762
+      },
+      "items": [
+        {
+          "id": "lookup-001",
+          "category": "lookup",
+          "recall@1": 1.0,
+          "recall@3": 1.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "xref-001",
+          "category": "cross_reference",
+          "recall@1": 0.25,
+          "recall@3": 0.5,
+          "recall@5": 0.75,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "table-001",
+          "category": "table",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "temporal-001",
+          "category": "temporal",
+          "recall@1": 0.0,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 0.3333333333333333
+        },
+        {
+          "id": "corrigendum-001",
+          "category": "corrigendum",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "scenario-001",
+          "category": "scenario",
+          "recall@1": 0.0,
+          "recall@3": 0.0,
+          "recall@5": 0.0,
+          "hit_rate@5": 0.0,
+          "mrr": 0.0
+        },
+        {
+          "id": "injection-001",
+          "category": "prompt_injection",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        }
+      ]
+    },
+    {
+      "variant": "hybrid + reranker",
+      "name": "hybrid + reranker",
+      "chunks": "structure",
+      "mode": "hybrid",
+      "rerank": true,
+      "n": 7,
+      "metrics": {
+        "recall@1": 0.32142857142857145,
+        "recall@3": 0.35714285714285715,
+        "recall@5": 0.5,
+        "hit_rate@5": 0.7142857142857143,
+        "mrr": 0.6275510204081634
+      },
+      "items": [
+        {
+          "id": "lookup-001",
+          "category": "lookup",
+          "recall@1": 1.0,
+          "recall@3": 1.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "xref-001",
+          "category": "cross_reference",
+          "recall@1": 0.25,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "table-001",
+          "category": "table",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "temporal-001",
+          "category": "temporal",
+          "recall@1": 0.0,
+          "recall@3": 0.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 0.25
+        },
+        {
+          "id": "corrigendum-001",
+          "category": "corrigendum",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "scenario-001",
+          "category": "scenario",
+          "recall@1": 0.0,
+          "recall@3": 0.0,
+          "recall@5": 0.0,
+          "hit_rate@5": 0.0,
+          "mrr": 0.0
+        },
+        {
+          "id": "injection-001",
+          "category": "prompt_injection",
+          "recall@1": 0.0,
+          "recall@3": 0.0,
+          "recall@5": 0.0,
+          "hit_rate@5": 0.0,
+          "mrr": 0.14285714285714285
+        }
+      ]
+    },
+    {
+      "variant": "dense (fixed chunks)",
+      "name": "dense (fixed chunks)",
+      "chunks": "fixed",
+      "mode": "dense",
+      "rerank": false,
+      "n": 7,
+      "metrics": {
+        "recall@1": 0.2857142857142857,
+        "recall@3": 0.39285714285714285,
+        "recall@5": 0.5,
+        "hit_rate@5": 0.8571428571428571,
+        "mrr": 0.6071428571428571
+      },
+      "items": [
+        {
+          "id": "lookup-001",
+          "category": "lookup",
+          "recall@1": 1.0,
+          "recall@3": 1.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "xref-001",
+          "category": "cross_reference",
+          "recall@1": 0.0,
+          "recall@3": 0.25,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 0.5
+        },
+        {
+          "id": "table-001",
+          "category": "table",
+          "recall@1": 0.0,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 0.5
+        },
+        {
+          "id": "temporal-001",
+          "category": "temporal",
+          "recall@1": 0.0,
+          "recall@3": 0.0,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 0.25
+        },
+        {
+          "id": "corrigendum-001",
+          "category": "corrigendum",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "scenario-001",
+          "category": "scenario",
+          "recall@1": 0.0,
+          "recall@3": 0.0,
+          "recall@5": 0.0,
+          "hit_rate@5": 0.0,
+          "mrr": 0.0
+        },
+        {
+          "id": "injection-001",
+          "category": "prompt_injection",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        }
+      ]
+    },
+    {
+      "variant": "hybrid (fixed chunks)",
+      "name": "hybrid (fixed chunks)",
+      "chunks": "fixed",
+      "mode": "hybrid",
+      "rerank": false,
+      "n": 7,
+      "metrics": {
+        "recall@1": 0.35714285714285715,
+        "recall@3": 0.5357142857142857,
+        "recall@5": 0.6785714285714286,
+        "hit_rate@5": 0.8571428571428571,
+        "mrr": 0.6547619047619048
+      },
+      "items": [
+        {
+          "id": "lookup-001",
+          "category": "lookup",
+          "recall@1": 1.0,
+          "recall@3": 1.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "xref-001",
+          "category": "cross_reference",
+          "recall@1": 0.0,
+          "recall@3": 0.25,
+          "recall@5": 0.75,
+          "hit_rate@5": 1.0,
+          "mrr": 0.3333333333333333
+        },
+        {
+          "id": "table-001",
+          "category": "table",
+          "recall@1": 0.5,
+          "recall@3": 1.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "temporal-001",
+          "category": "temporal",
+          "recall@1": 0.0,
+          "recall@3": 0.0,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 0.25
+        },
+        {
+          "id": "corrigendum-001",
+          "category": "corrigendum",
+          "recall@1": 0.5,
+          "recall@3": 0.5,
+          "recall@5": 0.5,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        },
+        {
+          "id": "scenario-001",
+          "category": "scenario",
+          "recall@1": 0.0,
+          "recall@3": 0.0,
+          "recall@5": 0.0,
+          "hit_rate@5": 0.0,
+          "mrr": 0.0
+        },
+        {
+          "id": "injection-001",
+          "category": "prompt_injection",
+          "recall@1": 0.5,
+          "recall@3": 1.0,
+          "recall@5": 1.0,
+          "hit_rate@5": 1.0,
+          "mrr": 1.0
+        }
+      ]
+    }
+  ]
+}

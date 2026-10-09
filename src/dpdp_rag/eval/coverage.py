@@ -7,7 +7,7 @@ import json
 from collections import defaultdict
 from typing import Any
 
-from dpdp_rag.config import load_config, resolve
+from dpdp_rag.config import load_config, load_system_config, resolve
 from dpdp_rag.eval.golden import GoldenItem, load_golden
 from dpdp_rag.generation.pinpoint import pinpoint
 from dpdp_rag.ingest.models import Chunk
@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--json", action="store_true", help="print JSON instead of text")
     args = parser.parse_args(argv)
     cfg = load_config(args.config)
-    system = load_config(cfg["system_config"])
+    system = load_system_config(cfg["system_config"])
     chunks = load_chunks(resolve(system["data"]["chunks_file"]))
     items = load_golden(
         resolve(cfg["golden_file"]), {c.chunk_id for c in chunks}, cfg["categories"]

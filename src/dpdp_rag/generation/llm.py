@@ -75,3 +75,44 @@ class AnthropicLLM:
             messages=[{"role": "user", "content": user}],
             output_config=output_config,
         )
+
+
+class StubLLM:
+    """Deterministic stand-in for load tests and offline demos (llm.provider: stub).
+
+    It cites the first supplied document and says plainly that no model was called, so
+    a stub answer can never be mistaken for a real one. Optional `stub_latency_ms`
+    simulates model latency.
+    """
+
+    def __init__(self, cfg: dict[str, Any]) -> None:
+        self.model = "stub"
+        self._latency_s = float(cfg.get("stub_latency_ms") or 0) / 1000
+
+    def generate(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult:
+        import json
+        import re
+        import time
+
+        if self._latency_s:
+            time.sleep(self._latency_s)
+        ids = re.findall(r'chunk_id="([^"]+)"', user)
+        body = {
+            "answer": "[stub answer: no language model was called] See the cited provision.",
+            "citations": [{"chunk_id": ids[0], "pinpoint": ""}] if ids else [],
+            "refused": not ids,
+            "refusal_reason": "none" if ids else "insufficient_context",
+        }
+        return LLMResult(
+            text=json.dumps(body), usage=Usage(), model=self.model, stop_reason="end_turn"
+        )
+
+
+def make_answer_llm(cfg: dict[str, Any]) -> LLMClient:
+    """The client for `llm.provider`: "anthropic" (default) or "stub" (no API calls)."""
+    provider = cfg.get("provider", "anthropic")
+    if provider == "anthropic":
+        return AnthropicLLM(cfg)
+    if provider == "stub":
+        return StubLLM(cfg)
+    raise ValueError(f"Unknown llm.provider {provider!r}")

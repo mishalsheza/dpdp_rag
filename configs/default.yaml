@@ -129,3 +129,10 @@ tracing:
   # (LANGFUSE_HOST selects the server); otherwise tracing is a no-op.
   langfuse_enabled: true
   trace_name: ask
+
+ui:
+  # Where the Streamlit chat page sends questions; $DPDP_API_URL overrides it.
+  api_url: http://127.0.0.1:8000
+  request_timeout_s: 120
+  # Eval history read by the dashboard (one results.json per run directory).
+  eval_runs_dir: data/eval_runs

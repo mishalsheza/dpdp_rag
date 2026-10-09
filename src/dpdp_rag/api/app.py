@@ -17,9 +17,9 @@ from pydantic import BaseModel, Field
 from dpdp_rag.api.cache import ResponseCache, cache_key
 from dpdp_rag.api.versioning import config_hash as compute_config_hash
 from dpdp_rag.api.versioning import git_sha
-from dpdp_rag.config import REPO_ROOT, load_config, resolve
+from dpdp_rag.config import REPO_ROOT, load_system_config, resolve
 from dpdp_rag.generation.answer import Answerer, AnswerResult
-from dpdp_rag.generation.llm import AnthropicLLM, LLMClient, LLMError
+from dpdp_rag.generation.llm import LLMClient, LLMError, make_answer_llm
 from dpdp_rag.metrics.store import MetricsStore, RequestMetric
 from dpdp_rag.observability.tracing import Tracer, make_tracer
 from dpdp_rag.retrieval.retriever import RetrievalUnavailable, Retriever
@@ -41,6 +41,8 @@ class CitationOut(BaseModel):
     in_force_date: date | None
     in_force: bool
     corrected_by: str | None
+    title: str | None = None
+    text: str = ""
 
 
 class Tokens(BaseModel):
@@ -93,7 +95,7 @@ def create_app(
 ) -> FastAPI:
     """Build the app. Arguments left as None are created from configs/default.yaml."""
     load_dotenv(REPO_ROOT / ".env")
-    config = config or load_config("default.yaml")
+    config = config or load_system_config()
     chash = compute_config_hash(config)
     tracer = tracer or make_tracer(config.get("tracing", {}))
     metrics = metrics or MetricsStore(resolve(config["metrics"]["db_path"]))
@@ -106,7 +108,7 @@ def create_app(
         # Built on first use so the app starts without Qdrant or an API key at hand.
         if "answerer" not in state:
             state["answerer"] = Answerer(
-                config, retriever or Retriever(config), llm or AnthropicLLM(config["llm"])
+                config, retriever or Retriever(config), llm or make_answer_llm(config["llm"])
             )
         return state["answerer"]
 
@@ -115,6 +117,12 @@ def create_app(
         yield
         tracer.flush()
 
+    llm_cfg = config["llm"]
+    answer_model = (
+        llm_cfg["model"]
+        if llm_cfg.get("provider", "anthropic") == "anthropic"
+        else (llm_cfg["provider"])
+    )
     app = FastAPI(title="dpdp-rag", lifespan=lifespan)
     app.state.config_hash = chash
     app.state.metrics = metrics
@@ -125,7 +133,7 @@ def create_app(
 
     @app.get("/version")
     def version() -> dict[str, str]:
-        return {"git_sha": git_sha(), "config_hash": chash, "model": config["llm"]["model"]}
+        return {"git_sha": git_sha(), "config_hash": chash, "model": answer_model}
 
     @app.post("/ask", response_model=AskResponse)
     def ask(req: AskRequest) -> AskResponse:

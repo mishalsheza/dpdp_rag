@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import os
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,20 @@ def load_config(name: str = "ingest.yaml", config_dir: Path = CONFIG_DIR) -> dic
     if not isinstance(data, dict):
         raise ValueError(f"Config {name} must be a mapping")
     return data
+
+
+OVERRIDES_ENV = "DPDP_CONFIG_OVERRIDES"
+
+
+def load_system_config(name: str = "default.yaml") -> dict[str, Any]:
+    """The system config, with any files in $DPDP_CONFIG_OVERRIDES (comma-separated,
+    names in configs/ or paths) deep-merged on top in order. Docker and the load test use
+    this to change settings without editing default.yaml."""
+    cfg = load_config(name)
+    for item in os.environ.get(OVERRIDES_ENV, "").split(","):
+        if item.strip():
+            cfg = merge(cfg, load_config(item.strip()))
+    return cfg
 
 
 def merge(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:

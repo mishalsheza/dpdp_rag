@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import uvicorn
 
-from dpdp_rag.config import load_config
+from dpdp_rag.config import load_system_config
 
 
 def main() -> None:
-    cfg = load_config("default.yaml")["api"]
+    cfg = load_system_config()["api"]
     uvicorn.run(
         "dpdp_rag.api.app:create_app", factory=True, host=cfg["host"], port=int(cfg["port"])
     )

@@ -7,7 +7,7 @@ import json
 from dataclasses import replace
 from datetime import date
 
-from dpdp_rag.config import load_config
+from dpdp_rag.config import load_system_config
 from dpdp_rag.retrieval.filters import Filters
 from dpdp_rag.retrieval.retriever import MODES, RetrievedChunk, Retriever
 
@@ -62,7 +62,7 @@ def _format(r: RetrievedChunk) -> str:
 
 def main(argv: list[str] | None = None) -> None:
     args = _parser().parse_args(argv)
-    retriever = Retriever(load_config(args.config))
+    retriever = Retriever(load_system_config(args.config))
     results = retriever.retrieve(
         args.query,
         args.k,

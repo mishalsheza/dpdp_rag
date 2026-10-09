@@ -1,0 +1,20 @@
+# Retrieval ablation (dpdp-ablation): which retrieval setup finds the gold chunks of the
+# golden set. Retrieval only - no LLM calls, no cost. Runs on in-memory Qdrant.
+golden_file: data/golden.jsonl
+ks: [1, 3, 5]
+mrr_depth: 10
+variants:
+  - {name: dense, chunks: structure, mode: dense, rerank: false}
+  - {name: bm25, chunks: structure, mode: bm25, rerank: false}
+  - {name: hybrid, chunks: structure, mode: hybrid, rerank: false}
+  - {name: hybrid + reranker, chunks: structure, mode: hybrid, rerank: true}
+  - {name: dense (fixed chunks), chunks: fixed, mode: dense, rerank: false}
+  - {name: hybrid (fixed chunks), chunks: fixed, mode: hybrid, rerank: false}
+# Fixed-size baseline: each document's text (chunks in reading order) cut into windows.
+fixed_chunks:
+  size_chars: 1000
+  overlap_chars: 200
+  # A fixed chunk "covers" a gold chunk when it contains at least this share of it
+  # (or the gold chunk contains at least this share of the fixed chunk).
+  min_overlap: 0.5
+output: data/ablation/results.json

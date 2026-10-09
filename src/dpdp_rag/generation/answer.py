@@ -48,6 +48,8 @@ class Citation:
     in_force_date: date | None
     in_force: bool
     corrected_by: str | None
+    title: str | None = None
+    text: str = ""  # the provision as answered from (corrected text where applicable)
 
 
 @dataclass
@@ -89,6 +91,8 @@ class Answerer:
             in_force_date=chunk.in_force_date,
             in_force=in_force(chunk, as_of),
             corrected_by=chunk.corrected_by,
+            title=chunk.title,
+            text=chunk.text,
         )
 
     def _refusal(

@@ -11,7 +11,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from dpdp_rag.config import REPO_ROOT, load_config, merge, resolve
+from dpdp_rag.config import REPO_ROOT, load_config, load_system_config, merge, resolve
 from dpdp_rag.eval.golden import GoldenSetError, load_golden
 from dpdp_rag.retrieval.store import load_chunks
 
@@ -19,7 +19,7 @@ from dpdp_rag.retrieval.store import load_chunks
 def load_configs(config: str, overrides: list[str]) -> tuple[dict[str, Any], dict[str, Any]]:
     """The eval config and the system config, with override files merged on top."""
     cfg = load_config(config)
-    system = load_config(cfg["system_config"])
+    system = load_system_config(cfg["system_config"])
     for path in overrides:
         extra = load_config(path)
         unknown = set(extra) - {"eval", "system"}

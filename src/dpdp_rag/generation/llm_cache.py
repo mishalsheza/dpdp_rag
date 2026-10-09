@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from dpdp_rag.generation.cost import Usage, cost_usd
-from dpdp_rag.generation.llm import AnthropicLLM, LLMClient, LLMResult
+from dpdp_rag.generation.llm import LLMClient, LLMResult, make_answer_llm
 from dpdp_rag.kvcache import SqliteKV, digest
 
 
@@ -125,4 +125,4 @@ def make_llm(
 
         kv = SqliteKV(resolve(Path(cache_cfg["path"])), "llm_calls")
     params = {k: llm_cfg.get(k) for k in _PARAM_KEYS}
-    return CachingLLM(inner or AnthropicLLM(llm_cfg), kv, params, llm_cfg["pricing"], budget)
+    return CachingLLM(inner or make_answer_llm(llm_cfg), kv, params, llm_cfg["pricing"], budget)

@@ -1,0 +1,15 @@
+.git
+.venv
+.cache
+.github
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.env
+.env.*
+!.env.example
+data/cache
+data/eval_runs
+data/metrics.db
+eval-out
+contributions

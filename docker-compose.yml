@@ -1,5 +1,21 @@
-# Local Qdrant for development: `docker compose up -d`, then `uv run dpdp-index`.
-# For Qdrant Cloud, set QDRANT_URL and QDRANT_API_KEY in .env instead.
+# The whole stack locally: `docker compose up --build`
+#   UI  http://localhost:8501   (chat + metrics dashboard)
+#   API http://localhost:8000   (POST /ask, /healthz, /version)
+# Put ANTHROPIC_API_KEY (and optional LANGFUSE_*) in .env. For Qdrant Cloud instead of
+# the local container, set QDRANT_URL / QDRANT_API_KEY in .env and drop the qdrant service.
+
+x-app: &app
+  build: .
+  image: dpdp-rag:local
+  env_file:
+    - path: .env
+      required: false
+  volumes:
+    - ./data:/app/data  # chunks, metrics.db, caches and eval runs live on the host
+  environment: &app-env
+    DPDP_CONFIG_OVERRIDES: docker.yaml
+    QDRANT_URL: http://qdrant:6333
+
 services:
   qdrant:
     image: qdrant/qdrant:v1.13.4
@@ -8,6 +24,44 @@ services:
       - "6334:6334"  # gRPC
     volumes:
       - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+
+  indexer:  # one-shot: embeds chunks.jsonl into Qdrant if missing or stale, then exits
+    <<: *app
+    command: ["dpdp-index", "--if-stale", "--wait", "90"]
+    depends_on:
+      - qdrant
+    restart: "no"
+
+  api:
+    <<: *app
+    command: ["dpdp-api"]
+    ports:
+      - "8000:8000"
+    depends_on:
+      indexer:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  ui:
+    <<: *app
+    command: ["streamlit", "run", "src/dpdp_rag/ui/app.py", "--server.address=0.0.0.0",
+              "--server.port=8501", "--server.headless=true",
+              "--browser.gatherUsageStats=false"]
+    ports:
+      - "8501:8501"
+    environment:
+      <<: *app-env
+      DPDP_API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
