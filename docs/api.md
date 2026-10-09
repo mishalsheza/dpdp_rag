@@ -22,6 +22,7 @@ optional.
                  "in_force_date": "2027-05-13", "in_force": false, "corrected_by": null}],
   "refused": false,
   "refusal_reason": null,
+  "unverified_mentions": [],
   "as_of_date": "2026-01-01",
   "latency_ms": 812.4,
   "tokens": {"input": 2310, "output": 402, "cache_read": 1450, "cache_write": 0, "total": 4162},
@@ -80,9 +81,12 @@ are local changes.
    - Pinpoint labels and in-force flags come from chunk metadata, not from the model.
    - A non-refused answer with no valid citation is replaced by the insufficient-context
      refusal text in `prompts/refusal_insufficient_context.md`.
-6. **Cost.** `cost_usd` uses `llm.pricing`: $0.10 / $0.50 per million input / output
-   tokens, and $0.50 / $2.50 for prompts over 100K tokens. Cache writes cost 1.25× the
-   input rate and cache reads 0.1×.
+   - Sections and rules the answer text names are checked against the cited chunks
+     (`generation/mentions.py`). A named provision that was supplied but not cited is
+     added to `citations`. One that no supplied chunk backs is listed in
+     `unverified_mentions`, and the UI shows it as a warning.
+6. **Cost.** `cost_usd` uses `llm.pricing`. On Groq's free tier every rate is 0, so it is
+   always $0; set real rates there if you move to a paid tier.
 
 ## config_hash, cache, tracing, metrics
 

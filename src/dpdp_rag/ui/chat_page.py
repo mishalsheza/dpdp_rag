@@ -15,6 +15,7 @@ from dpdp_rag.ui.render import (
     citation_badges,
     footer,
     source_line,
+    unverified_note,
     version,
 )
 
@@ -57,6 +58,8 @@ def show_answer(resp: dict, asked_on: date) -> None:
             REFUSAL_LABELS.get(reason, "The assistant declined to answer."), icon=":material/info:"
         )
     st.markdown(resp["answer"])
+    if note := unverified_note(resp):
+        st.warning(note, icon=":material/warning:")
     citations = resp.get("citations", [])
     if citations:
         st.markdown(f"**Sources ({len(citations)})**")

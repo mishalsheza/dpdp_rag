@@ -90,6 +90,17 @@ def source_line(citation: dict[str, Any]) -> str:
     return " · ".join(parts)
 
 
+def unverified_note(response: dict[str, Any]) -> str | None:
+    """A warning for provisions the answer names that none of its sources back."""
+    names = response.get("unverified_mentions") or []
+    if not names:
+        return None
+    return (
+        f"The answer mentions {', '.join(names)}, which none of the sources below back. "
+        "Treat that part as unverified."
+    )
+
+
 def footer(response: dict[str, Any]) -> str:
     tokens = response.get("tokens", {}).get("total", 0)
     bits = [

@@ -54,6 +54,7 @@ def test_ask_response_shape(make, api_config) -> None:
         "citations",
         "refused",
         "refusal_reason",
+        "unverified_mentions",
         "as_of_date",
         "latency_ms",
         "tokens",
@@ -244,6 +245,14 @@ def test_trace_carries_config_hash_and_steps(make, api_config) -> None:
     # Cached requests are traced too, without LLM steps.
     client.post("/ask", json={"question": R12_QUESTION, "as_of_date": "2026-01-01"})
     assert tracer.traces[1]["steps"] == [] and tracer.traces[1]["end_metadata"]["cached"] is True
+
+
+def test_unverified_mentions_reported(make) -> None:
+    reply = cite("dpdp_rules_2025:sch4:A:3") | {"answer": "Under Section 9(1) and Rule 99(2), ..."}
+    client, _, _ = make(FakeLLM(reply))
+    body = client.post("/ask", json={"question": R12_QUESTION}).json()
+    # Section 9(1) is backed by the cited Schedule row; Rule 99(2) by nothing supplied.
+    assert body["unverified_mentions"] == ["Rule 99(2)"]
 
 
 def test_healthz_and_version(make, api_config, monkeypatch) -> None:

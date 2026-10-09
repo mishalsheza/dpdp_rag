@@ -72,6 +72,13 @@ def test_source_line_and_footer() -> None:
     )
 
 
+def test_unverified_note() -> None:
+    assert render.unverified_note({"unverified_mentions": []}) is None
+    assert render.unverified_note({}) is None  # responses cached before the field existed
+    note = render.unverified_note({"unverified_mentions": ["Rule 10(2)", "Section 99"]})
+    assert note is not None and note.startswith("The answer mentions Rule 10(2), Section 99,")
+
+
 def test_ask_and_errors(monkeypatch) -> None:
     calls: list[dict[str, Any]] = []
 

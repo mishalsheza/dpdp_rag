@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError
 from dpdp_rag.generation.context import in_force, render_context, untrusted
 from dpdp_rag.generation.cost import Usage, cost_usd
 from dpdp_rag.generation.llm import LLMClient, LLMError
+from dpdp_rag.generation.mentions import find_mentions, is_chunk_of, supports
 from dpdp_rag.generation.pinpoint import pinpoint
 from dpdp_rag.generation.prompts import Prompts
 from dpdp_rag.ingest.models import Chunk
@@ -63,6 +64,8 @@ class AnswerResult:
     usage: Usage = field(default_factory=Usage)
     cost_usd: float = 0.0
     retrieved: list[str] = field(default_factory=list)
+    # Provisions the answer text names that no cited document backs (shown as a warning).
+    unverified_mentions: list[str] = field(default_factory=list)
 
 
 class Answerer:
@@ -94,6 +97,26 @@ class Answerer:
             title=chunk.title,
             text=chunk.text,
         )
+
+    def _check_mentions(
+        self, text: str, chunks: list[Chunk], citations: list[Citation], as_of: date
+    ) -> tuple[list[Citation], list[str]]:
+        """Cite supplied chunks the prose names but the model left out; return the names
+        no supplied chunk backs."""
+        cited_ids = {c.chunk_id for c in citations}
+        unverified: list[str] = []
+        for mention in find_mentions(text):
+            cited = [c for c in chunks if c.chunk_id in cited_ids]
+            if any(supports(mention, c) for c in cited):
+                continue
+            named = [c for c in chunks if c.chunk_id not in cited_ids and is_chunk_of(mention, c)]
+            if not named:
+                log.warning("Answer names %s, which no supplied document backs", mention.label)
+                unverified.append(mention.label)
+            elif mention.sub:  # a specific provision: cite it (a bare "Section 9" is too broad)
+                cited_ids.update(c.chunk_id for c in named)
+                citations = citations + [self._citation(c, as_of) for c in named]
+        return citations, unverified
 
     def _refusal(
         self, as_of: date, retrieved: list[str], reason: RefusalReason, usage: Usage | None = None
@@ -177,6 +200,7 @@ class Answerer:
         if not parsed.refused and not citations:
             # An answer that cites nothing it was given is not supported by the context.
             return self._refusal(as_of, retrieved, "insufficient_context", result.usage)
+        citations, unverified = self._check_mentions(parsed.answer, chunks, citations, as_of)
         return AnswerResult(
             answer=parsed.answer,
             citations=citations,
@@ -187,4 +211,5 @@ class Answerer:
             usage=result.usage,
             cost_usd=cost,
             retrieved=retrieved,
+            unverified_mentions=unverified,
         )

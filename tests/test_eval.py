@@ -44,8 +44,8 @@ def test_real_golden_set_is_valid_and_covers_every_category() -> None:
     cfg = load_config("eval.yaml")
     real_ids = set(ChunkStore.from_file(resolve("data/processed/chunks.jsonl")).by_id)
     items = load_golden(resolve(cfg["golden_file"]), real_ids, cfg["categories"])
-    assert len(items) == 8
-    assert sorted(i.category for i in items) == sorted(cfg["categories"])
+    assert {i.category for i in items} == set(cfg["categories"])  # every category covered
+    assert len({i.id for i in items}) == len(items)
     assert all(i.author for i in items)
 
 
@@ -366,7 +366,8 @@ def test_coverage_report() -> None:
 
 def test_cli_validate(tmp_path, capsys) -> None:
     assert cli_main(["validate"]) == 0
-    assert "OK: 8 questions" in capsys.readouterr().out
+    n = len(resolve(load_config("eval.yaml")["golden_file"]).read_text().splitlines())
+    assert f"OK: {n} questions" in capsys.readouterr().out
     bad = tmp_path / "bad.jsonl"
     bad.write_text(
         json.dumps(

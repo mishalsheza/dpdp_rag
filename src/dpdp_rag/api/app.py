@@ -58,6 +58,7 @@ class AskResponse(BaseModel):
     citations: list[CitationOut]
     refused: bool
     refusal_reason: str | None
+    unverified_mentions: list[str] = []
     as_of_date: date
     latency_ms: float
     tokens: Tokens
@@ -74,6 +75,7 @@ def _payload(result: AnswerResult) -> dict[str, Any]:
         "citations": [asdict(c) for c in result.citations],
         "refused": result.refused,
         "refusal_reason": result.refusal_reason,
+        "unverified_mentions": result.unverified_mentions,
         "as_of_date": result.as_of_date,
         "tokens": result.usage.as_dict(),
         "cost_usd": result.cost_usd,
