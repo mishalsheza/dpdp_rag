@@ -32,6 +32,8 @@ dpdp-retrieve = "dpdp_rag.retrieval.__main__:main"
 dpdp-api = "dpdp_rag.api.__main__:main"
 dpdp-eval = "dpdp_rag.eval.cli:main"
 dpdp-eval-coverage = "dpdp_rag.eval.coverage:main"
+dpdp-eval-gate = "dpdp_rag.eval.gates:main"
+dpdp-eval-baseline = "dpdp_rag.eval.baseline:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -25,6 +25,13 @@ embedding:
   batch_size: 32
   # What gets embedded for each chunk. Fields are chunk metadata; missing ones render empty.
   document_template: "{title}\n{text}"
+  # Truncate each chunk's indexed text (dense and BM25) to this many characters; null = all.
+  # A small value is the "bad chunk size" regression used in docs/CI_DEMO.md.
+  index_max_chars: null
+  # On-disk embedding cache keyed by model + exact text (enabled in CI by configs/ci.yaml).
+  cache:
+    enabled: false
+    path: data/cache/embeddings.sqlite
 
 bm25:
   k1: 1.5

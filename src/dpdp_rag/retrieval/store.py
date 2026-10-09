@@ -16,10 +16,15 @@ def load_chunks(path: Path) -> list[Chunk]:
         return [Chunk.model_validate_json(line) for line in fh if line.strip()]
 
 
-def render(template: str, chunk: Chunk) -> str:
-    """Fill a template such as "{title}\\n{text}" from chunk fields (None -> "")."""
+def render(template: str, chunk: Chunk, max_chars: int | None = None) -> str:
+    """Fill a template such as "{title}\\n{text}" from chunk fields (None -> "").
+
+    `max_chars` truncates the result (embedding.index_max_chars), e.g. to study how much
+    of each chunk the index needs to see.
+    """
     values = {k: ("" if v is None else v) for k, v in chunk.model_dump().items()}
-    return template.format(**values).strip()
+    text = template.format(**values).strip()
+    return text[:max_chars] if max_chars else text
 
 
 class ChunkStore:

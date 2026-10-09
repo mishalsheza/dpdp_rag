@@ -47,13 +47,19 @@ def payload(chunk: Chunk) -> dict[str, Any]:
 
 class QdrantIndex:
     def __init__(
-        self, client: QdrantClient, cfg: dict[str, Any], embedder: Embedder, template: str
+        self,
+        client: QdrantClient,
+        cfg: dict[str, Any],
+        embedder: Embedder,
+        template: str,
+        max_chars: int | None = None,
     ) -> None:
         self.client = client
         self.cfg = cfg
         self.collection = cfg["collection"]
         self.embedder = embedder
         self.template = template
+        self.max_chars = max_chars
 
     def is_current(self, chunks: list[Chunk]) -> bool:
         """True if the collection exists with the right vector size and point count."""
@@ -87,7 +93,9 @@ class QdrantIndex:
         batch = int(self.cfg["upsert_batch_size"])
         for start in range(0, len(chunks), batch):
             part = chunks[start : start + batch]
-            vectors = self.embedder.embed_documents([render(self.template, c) for c in part])
+            vectors = self.embedder.embed_documents(
+                [render(self.template, c, self.max_chars) for c in part]
+            )
             self.client.upsert(
                 self.collection,
                 points=[

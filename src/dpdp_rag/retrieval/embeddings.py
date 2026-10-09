@@ -56,7 +56,7 @@ class HashEmbedder:
         return self._embed(text)
 
 
-def make_embedder(cfg: dict[str, Any]) -> Embedder:
+def _make_base(cfg: dict[str, Any]) -> Embedder:
     provider = cfg["provider"]
     if provider == "fastembed":
         return FastEmbedEmbedder(cfg["model"], int(cfg["batch_size"]))
@@ -65,3 +65,17 @@ def make_embedder(cfg: dict[str, Any]) -> Embedder:
             raise ValueError("embedding.dim is required for the hash provider")
         return HashEmbedder(int(cfg["dim"]))
     raise ValueError(f"Unknown embedding provider {provider!r}")
+
+
+def make_embedder(cfg: dict[str, Any]) -> Embedder:
+    """The configured embedder, behind the on-disk cache when embedding.cache.enabled."""
+    base = _make_base(cfg)
+    cache = cfg.get("cache") or {}
+    if not cache.get("enabled"):
+        return base
+    from dpdp_rag.config import resolve
+    from dpdp_rag.kvcache import SqliteKV
+    from dpdp_rag.retrieval.embedding_cache import CachingEmbedder
+
+    model_id = f"{cfg['provider']}:{cfg.get('model') or ''}"
+    return CachingEmbedder(base, SqliteKV(resolve(cache["path"]), "embeddings"), model_id)

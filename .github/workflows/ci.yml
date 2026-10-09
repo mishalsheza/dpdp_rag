@@ -1,0 +1,155 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]  # also warms the eval caches that PRs restore from
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-test:
+    name: Lint + tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install (Python version from .python-version)
+        run: uv sync --frozen
+      - name: Ruff lint
+        run: uv run ruff check .
+      - name: Ruff format
+        run: uv run ruff format --check .
+      - name: Tests (LLM mocked, offline)
+        run: uv run pytest
+
+  eval:
+    name: Eval gate
+    needs: lint-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write  # sticky before/after comment
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
+      FASTEMBED_CACHE_PATH: ${{ github.workspace }}/.cache/fastembed
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+
+      # Caches keep repeat runs nearly free: the embedding model, chunk/query embeddings,
+      # and every LLM call (answers + judge) whose exact inputs were seen before.
+      - name: Restore embedding model
+        uses: actions/cache@v4
+        with:
+          path: .cache/fastembed
+          key: fastembed-${{ runner.os }}-${{ hashFiles('configs/default.yaml') }}
+          restore-keys: fastembed-${{ runner.os }}-
+      - name: Restore embedding and LLM-call caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/cache/embeddings.sqlite
+            data/cache/llm_calls.sqlite
+          key: eval-calls-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: eval-calls-${{ runner.os }}-
+
+      - name: Validate golden set
+        run: uv run dpdp-eval validate
+
+      - name: Check for API key
+        id: key
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run eval suite
+        if: steps.key.outputs.present == 'true'
+        run: uv run dpdp-eval --override configs/ci.yaml run --out eval-out
+
+      - name: Compare against baseline
+        id: gate
+        if: steps.key.outputs.present == 'true'
+        run: |
+          set +e
+          uv run dpdp-eval-gate --results eval-out/results.json \
+            --comment-out eval-out/comment.md --run-url "$RUN_URL"
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Explain a skipped eval
+        if: steps.key.outputs.present != 'true'
+        run: |
+          mkdir -p eval-out
+          {
+            echo '<!-- dpdp-eval-gate -->'
+            echo '## ⏭️ Eval gate skipped'
+            echo ''
+            echo 'No `ANTHROPIC_API_KEY` secret is available to this run (for example a PR'
+            echo 'from a fork), so the eval suite did not run. Lint and tests still ran.'
+          } > eval-out/comment.md
+
+      - name: Explain a crashed eval
+        if: failure() && steps.key.outputs.present == 'true'
+        run: |
+          mkdir -p eval-out
+          {
+            echo '<!-- dpdp-eval-gate -->'
+            echo '## ❌ Eval run failed'
+            echo ''
+            echo "The eval suite did not finish (budget exceeded, API error or crash)."
+            echo "See the [job log]($RUN_URL)."
+          } > eval-out/comment.md
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: eval-out/
+          if-no-files-found: ignore
+
+      - name: Post before/after comment
+        if: always() && github.event_name == 'pull_request' && hashFiles('eval-out/comment.md') != ''
+        continue-on-error: true  # PRs from forks get a read-only token
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('eval-out/comment.md', 'utf8');
+            const marker = '<!-- dpdp-eval-gate -->';
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 });
+            const existing = comments.find(c => c.user.type === 'Bot' && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Fail if a gate failed
+        if: steps.gate.outputs.exit != '' && steps.gate.outputs.exit != '0'
+        run: |
+          echo "::error title=Eval gate failed::A metric dropped beyond configs/gates.yaml thresholds. See the PR comment or the eval-results artifact."
+          exit 1

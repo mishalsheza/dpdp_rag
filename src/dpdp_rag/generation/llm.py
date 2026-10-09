@@ -64,14 +64,14 @@ class AnthropicLLM:
         extra: dict[str, Any] = {}
         if self._cfg.get("temperature") is not None:  # only for models that accept it
             extra["temperature"] = float(self._cfg["temperature"])
+        output_config: dict[str, Any] = {"format": {"type": "json_schema", "schema": schema}}
+        if self._cfg.get("effort"):  # e.g. claude-haiku-4-5 has no effort parameter
+            output_config["effort"] = self._cfg["effort"]
         return self._client.messages.create(
             **extra,
             model=self.model,
             max_tokens=int(self._cfg["max_tokens"]),
             system=[system_block],
             messages=[{"role": "user", "content": user}],
-            output_config={
-                "effort": self._cfg["effort"],
-                "format": {"type": "json_schema", "schema": schema},
-            },
+            output_config=output_config,
         )

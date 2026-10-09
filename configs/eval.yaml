@@ -12,24 +12,23 @@ retrieval:
   mrr_depth: 10  # ranks considered for MRR; a gold chunk below this counts as 0
 
 judge:
-  model: claude-haiku-5-5
-  # Claude Haiku 5.5 rejects any non-default temperature (400), so it is omitted and the
-  # judge's output is constrained by a JSON schema (integer enum / boolean) instead.
-  # For literal temperature-0 judging set model: claude-haiku-4-5 and temperature: 0
-  # (and update pricing: $1 / $5 per MTok).
-  temperature: null
-  effort: low
-  max_tokens: 4000
+  # Temperature 0 for reproducible judging. Claude Haiku 5.5 rejects any non-default
+  # temperature (400), so the judge is Claude Haiku 4.5, which accepts it and supports
+  # structured outputs. Haiku 4.5 has no `effort` parameter, so effort is null (omitted).
+  model: claude-haiku-4-5
+  temperature: 0
+  effort: null
+  max_tokens: 2000
   timeout_s: 60
   max_retries: 2
   cache_system_prompt: true
   pass_threshold: 4  # a 1-5 score >= this counts as a pass
-  pricing:  # USD per 1M tokens (claude-haiku-5-5)
-    input: 0.10
-    output: 0.50
-    long_context_threshold: 100000
-    long_input: 0.50
-    long_output: 2.50
+  pricing:  # USD per 1M tokens (claude-haiku-4-5; 200K context, no long-context tier)
+    input: 1.00
+    output: 5.00
+    long_context_threshold: 1000000000
+    long_input: 1.00
+    long_output: 5.00
     cache_write_multiplier: 1.25
     cache_read_multiplier: 0.10
   prompt_files:
@@ -39,6 +38,19 @@ judge:
     input: prompts/judge_input.md
     score_schema: prompts/judge_score_schema.json
     refusal_schema: prompts/judge_refusal_schema.json
+
+# As-of date for golden items without one; null = the run date. CI pins it so results
+# stay comparable with the baseline over time.
+default_as_of_date: null
+
+# Disk cache of LLM calls (answers and judge), keyed by model, parameters and the exact
+# prompts. Identical requests are replayed for free; enabled in CI by configs/ci.yaml.
+llm_cache:
+  enabled: false
+  path: data/cache/llm_calls.sqlite
+
+# Cap on uncached (billed) LLM spend per run, in USD; null = no cap.
+budget_usd: null
 
 tracing:
   trace_name: eval_run

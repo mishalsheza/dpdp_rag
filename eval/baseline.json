@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "status": "uninitialized",
+  "note": "No baseline recorded yet. After a trusted eval run, record one deliberately with: uv run dpdp-eval-baseline --results <run>/results.json --reason \"...\" (see docs/CI_DEMO.md). Until then the CI gate reports metrics but cannot fail on regressions.",
+  "metrics": {},
+  "by_category": {}
+}

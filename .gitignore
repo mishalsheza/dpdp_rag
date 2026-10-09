@@ -22,3 +22,7 @@ dist/
 # Local runtime data
 data/metrics.db
 data/cache/
+
+# CI/tooling caches (fastembed models)
+.cache/
+eval-out/

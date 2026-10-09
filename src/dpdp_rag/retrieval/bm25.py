@@ -24,10 +24,12 @@ class Tokenizer:
 
 
 class BM25Index:
-    def __init__(self, chunks: list[Chunk], cfg: dict[str, Any], template: str) -> None:
+    def __init__(
+        self, chunks: list[Chunk], cfg: dict[str, Any], template: str, max_chars: int | None = None
+    ) -> None:
         self.chunks = chunks
         self.tokenize = Tokenizer(cfg.get("stopwords", []))
-        corpus = [self.tokenize(render(template, c)) for c in chunks]
+        corpus = [self.tokenize(render(template, c, max_chars)) for c in chunks]
         self._bm25 = BM25Okapi(corpus, k1=float(cfg["k1"]), b=float(cfg["b"]))
 
     def search(self, query: str, limit: int, filters: Filters) -> list[tuple[Chunk, float]]:

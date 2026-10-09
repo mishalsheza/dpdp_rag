@@ -1,0 +1,16 @@
+# Overrides for the CI eval job: `dpdp-eval --override configs/ci.yaml run`.
+# `eval:` is merged over configs/eval.yaml, `system:` over configs/default.yaml.
+eval:
+  llm_cache:
+    enabled: true  # replay unchanged LLM calls (answers + judge) from data/cache/
+  budget_usd: 0.50  # abort the run if uncached spend reaches this
+  default_as_of_date: 2026-10-09  # pinned so results stay comparable with the baseline
+system:
+  qdrant:
+    location: ":memory:"  # no Qdrant service needed; the index is rebuilt per run
+    auto_index: true
+  embedding:
+    cache:
+      enabled: true  # chunk and query embeddings are reused across runs
+  metrics:
+    db_path: data/cache/ci_metrics.db

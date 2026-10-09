@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from dataclasses import dataclass
@@ -17,7 +18,8 @@ from dpdp_rag.eval.report import aggregate, by_category, write_outputs
 from dpdp_rag.eval.retrieval_metrics import first_gold_rank, item_metrics
 from dpdp_rag.generation.answer import Answerer, AnswerResult
 from dpdp_rag.generation.context import render_context
-from dpdp_rag.generation.llm import AnthropicLLM, LLMClient, LLMError
+from dpdp_rag.generation.llm import LLMClient, LLMError
+from dpdp_rag.generation.llm_cache import Budget, make_llm
 from dpdp_rag.metrics.store import MetricsStore, RequestMetric, percentile
 from dpdp_rag.observability.tracing import NOOP_TRACE, Trace, Tracer, make_tracer
 from dpdp_rag.retrieval.retriever import RetrievalUnavailable, Retriever
@@ -51,17 +53,22 @@ class EvalRunner:
         self.cfg = eval_config
         self.system = system_config or load_config(eval_config["system_config"])
         self.retriever = retriever or Retriever(self.system)
-        self.answerer = Answerer(
-            self.system, self.retriever, answer_llm or AnthropicLLM(self.system["llm"])
-        )
-        self.judge = Judge(eval_config["judge"], judge_llm or AnthropicLLM(eval_config["judge"]))
+        # Both models go through the disk cache (if enabled) and one shared spend cap.
+        self.budget = Budget(eval_config.get("budget_usd"))
+        cache_cfg = eval_config.get("llm_cache")
+        self.answer_llm = make_llm(self.system["llm"], cache_cfg, self.budget, answer_llm)
+        self.judge_llm = make_llm(eval_config["judge"], cache_cfg, self.budget, judge_llm)
+        self.answerer = Answerer(self.system, self.retriever, self.answer_llm)
+        self.judge = Judge(eval_config["judge"], self.judge_llm)
         self.tracer = tracer or make_tracer(self.system.get("tracing", {}))
         self.metrics = metrics or MetricsStore(resolve(self.system["metrics"]["db_path"]))
         self.ks = [int(k) for k in eval_config["retrieval"]["ks"]]
         self.depth = int(eval_config["retrieval"]["mrr_depth"])
         self.store_ids = set(self.retriever.store.by_id)
         self.config_hash = config_hash(self.system)
-        self.today = date.today()  # as-of date for items without one; run() may override
+        # As-of date for items without one: config (pinned in CI), else today; run() may override.
+        pinned = eval_config.get("default_as_of_date")
+        self.today = date.fromisoformat(str(pinned)) if pinned else date.today()
 
     def load(self) -> list[GoldenItem]:
         return load_golden(resolve(self.cfg["golden_file"]), self.store_ids, self.cfg["categories"])
@@ -229,6 +236,9 @@ class EvalRunner:
                 "started_at": started.isoformat(),
                 "finished_at": datetime.now(UTC).isoformat(),
                 "golden_file": self.cfg["golden_file"],
+                "golden_hash": hashlib.sha256(
+                    resolve(self.cfg["golden_file"]).read_bytes()
+                ).hexdigest(),
                 "n": len(item_results),
                 "config_hash": self.config_hash,
                 "judge_hash": jhash,
@@ -245,8 +255,16 @@ class EvalRunner:
                     item_results, self.cfg["categories"], self.ks, pass_threshold
                 ),
                 "cost": {
+                    # Nominal cost of every call, cached or not (comparable across runs) ...
                     "answer_usd": sum(i["answer"].get("cost_usd") or 0 for i in item_results),
                     "judge_usd": sum(i["judge_cost_usd"] for i in item_results),
+                    # ... and what this run actually paid (cache misses only).
+                    "fresh_usd": self.budget.spent_usd,
+                    "budget_usd": self.budget.max_usd,
+                },
+                "llm_cache": {
+                    "answer": self.answer_llm.stats.as_dict(),
+                    "judge": self.judge_llm.stats.as_dict(),
                 },
                 "latency_ms": {"p50": percentile(latencies, 50), "p99": percentile(latencies, 99)},
                 "items": item_results,

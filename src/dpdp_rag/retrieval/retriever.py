@@ -67,7 +67,11 @@ class Retriever:
             embedder = self._embedder or make_embedder(self.config["embedding"])
             qcfg = self.config["qdrant"]
             index = QdrantIndex(
-                make_client(qcfg), qcfg, embedder, self.config["embedding"]["document_template"]
+                make_client(qcfg),
+                qcfg,
+                embedder,
+                self.config["embedding"]["document_template"],
+                self.config["embedding"].get("index_max_chars"),
             )
             if not index.is_current(self.store.chunks):
                 if not qcfg.get("auto_index"):
@@ -86,6 +90,7 @@ class Retriever:
                 self.store.chunks,
                 self.config["bm25"],
                 self.config["embedding"]["document_template"],
+                self.config["embedding"].get("index_max_chars"),
             )
         return self._bm25
 

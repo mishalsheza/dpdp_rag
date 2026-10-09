@@ -5,7 +5,11 @@ uv run dpdp-eval validate        # check data/golden.jsonl against data/processe
 uv run dpdp-eval run             # run the suite (calls Claude for answers and judging)
 uv run dpdp-eval run --category temporal --limit 3 --today 2026-10-09 --out /tmp/run
 uv run dpdp-eval-coverage        # chunks no golden question covers (labelling guide)
+uv run dpdp-eval-gate --results <run>/results.json      # compare with eval/baseline.json
+uv run dpdp-eval-baseline --results <run>/results.json --reason "..."   # record a baseline
 ```
+
+CI runs the suite on every PR and gates on regressions; see `docs/CI_DEMO.md`.
 
 The suite is configured in `configs/eval.yaml`, and the system under test in
 `configs/default.yaml` (named by `system_config`). A run needs the retrieval backend
@@ -142,20 +146,24 @@ A category with no items is still listed, with `–` in place of values.
 
 ### Judge model and settings
 
-- **Model:** `claude-haiku-5-5`, effort `low`, called through the same `AnthropicLLM`
-  client as the answer model.
+- **Model:** `claude-haiku-4-5` at **temperature 0**, called through the same
+  `AnthropicLLM` client as the answer model.
+  - Why this model: temperature 0 was requested for reproducible judging, and Claude
+    Haiku 5.5 rejects any non-default temperature with a 400. Haiku 4.5 accepts it and
+    supports structured outputs.
+  - Haiku 4.5 has no `effort` parameter, so `judge.effort` is `null` and isn't sent.
+  - Price: $1 / $5 per million tokens, about 10× Haiku 5.5. With 8 items this is still
+    cents per uncached run.
+  - The answer model stays `claude-haiku-5-5`, so the judge is a different model from
+    the system it grades.
 - **Output:** constrained by a JSON schema:
   - an integer `score` from the enum 1–5 with `reasoning`, or
   - a boolean `correct` with `reasoning`
 
   The reasoning field comes before the verdict.
-- **Temperature:** the request asked for temperature 0, but **Claude Haiku 5.5 rejects any
-  non-default temperature with a 400**. It is therefore omitted
-  (`judge.temperature: null`), and the schema and enum keep the output tightly
-  constrained. Judgements are therefore not guaranteed to be identical between runs. For
-  literal temperature-0 judging, set `judge.model: claude-haiku-4-5`,
-  `judge.temperature: 0`, and that model's pricing ($1 / $5 per million tokens) in
-  `configs/eval.yaml`. The client sends `temperature` only when it is set.
+- **Reproducibility:** temperature 0 reduces variation but doesn't guarantee
+  bit-identical output. In CI, the LLM-call cache (`llm_cache`, see `docs/CI_DEMO.md`)
+  replays identical judge calls exactly, so unchanged inputs always get unchanged scores.
 - **Untrusted content:** each rubric tells the judge that everything in the graded
   material is data, and to ignore instructions inside it. Question, answer and reference
   are escaped the same way as in the answering prompt.
@@ -208,10 +216,10 @@ The temporal and scenario questions are the hard ones for lexical retrieval.
   were written by an AI assistant and not yet checked by a person. Mistakes in the gold
   labels or reference answers become mistakes in the scores.
 - **Judge bias.** The judge is an LLM:
-  - **Same family as the answer model:** it is Claude Haiku, the same as the system, so
-    it may prefer the system's phrasing (self-preference).
-  - **No temperature 0:** Haiku 5.5 doesn't accept it, so judgements can vary between
-    runs.
+  - **Same family as the answer model:** it is Claude Haiku 4.5 grading Claude Haiku
+    5.5, so it may still prefer the system's phrasing (self-preference).
+  - **Run-to-run variation:** temperature 0 on Haiku 4.5 reduces it but doesn't remove
+    it. CI also caches judge calls and uses a noise tolerance (docs/CI_DEMO.md).
   - **Rubric limits:** it can be lenient on long, confident answers, it may miss subtle
     legal errors, and its 1–5 scale is coarse.
   - **Mitigations:** check a sample of judge reasonings against your own reading, keep

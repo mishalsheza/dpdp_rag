@@ -31,6 +31,7 @@ def main(argv: list[str] | None = None) -> None:
         qcfg,
         make_embedder(config["embedding"]),
         config["embedding"]["document_template"],
+        config["embedding"].get("index_max_chars"),
     )
     current = index.is_current(chunks)  # also checks that Qdrant is reachable
     if args.if_stale and current:

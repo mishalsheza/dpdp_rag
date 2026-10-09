@@ -1,0 +1,43 @@
+# Regression gates for the CI eval job (dpdp-eval-gate). All gated metrics are
+# higher-is-better. A metric fails when
+#     baseline - current > max_drop + tolerance
+# `max_drop` is the regression we accept; `tolerance` absorbs run-to-run noise so it
+# does not cause false failures. Retrieval is deterministic (same chunks, model and
+# index), so its tolerance only covers float rounding. Judge scores are means of 1-5
+# integers over ~8 items: one item moving one point shifts a mean by ~0.13, so their
+# tolerance is larger. See docs/CI_DEMO.md.
+baseline_file: eval/baseline.json
+
+gated:
+  recall@5:
+    path: overall.retrieval.recall@5
+    max_drop: 0.05
+    tolerance: 0.01
+  mrr:
+    path: overall.retrieval.mrr
+    max_drop: 0.05
+    tolerance: 0.01
+  faithfulness:
+    path: overall.answers.faithfulness_mean
+    max_drop: 0.25
+    tolerance: 0.15
+  relevance:
+    path: overall.answers.relevance_mean
+    max_drop: 0.25
+    tolerance: 0.15
+
+# Reported before/after in the PR comment, never fail the build.
+info:
+  recall@1: overall.retrieval.recall@1
+  recall@3: overall.retrieval.recall@3
+  hit_rate@5: overall.retrieval.hit_rate@5
+  context_recall: overall.retrieval.context_recall
+  refusal_correctness: overall.answers.refusal_correctness
+  faithfulness_pass_rate: overall.answers.faithfulness_pass_rate
+  relevance_pass_rate: overall.answers.relevance_pass_rate
+
+# Per-category before/after shown in a collapsible section of the PR comment.
+category_metrics: [recall@5, mrr, faithfulness, relevance, refusal_correctness]
+
+# Items that errored (LLM failure, retrieval down) fail the gate above this count.
+max_item_errors: 0
