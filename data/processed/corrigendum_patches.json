@@ -1,0 +1,128 @@
+[
+  {
+    "item": "(i)(a)",
+    "page": 24,
+    "line": 22,
+    "line_end": null,
+    "old_text": "of this Gazette",
+    "new_text": "in the Official Gazette",
+    "kind": "replace",
+    "source_text": "in page 24, line 22, for \"of this Gazette\", read \"in the Official Gazette\"",
+    "target_rule_or_schedule": "rule 1(3)",
+    "target_chunk_ids": [
+      "dpdp_rules_2025:r1(3)"
+    ],
+    "match_strategy": "old_text+line_tiebreak"
+  },
+  {
+    "item": "(i)(b)",
+    "page": 24,
+    "line": 24,
+    "line_end": null,
+    "old_text": "of this Gazette",
+    "new_text": "in the Official Gazette",
+    "kind": "replace",
+    "source_text": "in page 24, line 24, for \"of this Gazette\", read \"in the Official Gazette\"",
+    "target_rule_or_schedule": "rule 1(4)",
+    "target_chunk_ids": [
+      "dpdp_rules_2025:r1(4)"
+    ],
+    "match_strategy": "old_text"
+  },
+  {
+    "item": "(ii)",
+    "page": 29,
+    "line": 44,
+    "line_end": null,
+    "old_text": "Department",
+    "new_text": "Departments",
+    "kind": "replace",
+    "source_text": "in page 29, line 44, for \"Department\", read \"Departments\"",
+    "target_rule_or_schedule": "rule 13(5)",
+    "target_chunk_ids": [
+      "dpdp_rules_2025:r13(5)"
+    ],
+    "match_strategy": "old_text"
+  },
+  {
+    "item": "(iii)",
+    "page": 32,
+    "line": 4,
+    "line_end": null,
+    "old_text": "given in such",
+    "new_text": "given in such order",
+    "kind": "replace",
+    "source_text": "in page 32, line 4, for \"given in such\", read \"given in such order\"",
+    "target_rule_or_schedule": "rule 23(1)",
+    "target_chunk_ids": [
+      "dpdp_rules_2025:r23(1)"
+    ],
+    "match_strategy": "old_text"
+  },
+  {
+    "item": "(iv)(a)",
+    "page": 34,
+    "line": 1,
+    "line_end": null,
+    "old_text": "everybody",
+    "new_text": "every body",
+    "kind": "replace",
+    "source_text": "in page 34, line 1, for \"everybody\", read \"every body\"",
+    "target_rule_or_schedule": "First Schedule, Part B, item 11",
+    "target_chunk_ids": [
+      "dpdp_rules_2025:sch1:B:11"
+    ],
+    "match_strategy": "old_text"
+  },
+  {
+    "item": "(iv)(b)",
+    "page": 34,
+    "line": 26,
+    "line_end": null,
+    "old_text": "(18 or 2013)",
+    "new_text": "(18 of 2013)",
+    "kind": "replace",
+    "source_text": "in page 34, line 26, for \"(18 or 2013)\", read \"(18 of 2013)\"",
+    "target_rule_or_schedule": "First Schedule, Note (d)",
+    "target_chunk_ids": [
+      "dpdp_rules_2025:sch1:note4"
+    ],
+    "match_strategy": "old_text"
+  },
+  {
+    "item": "(v)(a)",
+    "page": 38,
+    "line": 2,
+    "line_end": null,
+    "old_text": ".",
+    "new_text": ";",
+    "kind": "replace",
+    "source_text": "in page 38, line 2, for \".\", read \";\"",
+    "target_rule_or_schedule": "Fourth Schedule, Note (a)",
+    "target_chunk_ids": [
+      "dpdp_rules_2025:sch4:note1"
+    ],
+    "match_strategy": "old_text+line_tiebreak"
+  },
+  {
+    "item": "(v)(b)",
+    "page": 38,
+    "line": 1,
+    "line_end": 15,
+    "old_text": "(a) to (f)",
+    "new_text": "(a) to (g)",
+    "kind": "reletter",
+    "source_text": "in page 38, lines 1 to 15, for \"(a) to (f)\", read \"(a) to (g)\"",
+    "target_rule_or_schedule": "Fourth Schedule, Note",
+    "target_chunk_ids": [
+      "dpdp_rules_2025:sch4:note1",
+      "dpdp_rules_2025:sch4:note2",
+      "dpdp_rules_2025:sch4:note3",
+      "dpdp_rules_2025:sch4:note4",
+      "dpdp_rules_2025:sch4:note5",
+      "dpdp_rules_2025:sch4:note6",
+      "dpdp_rules_2025:sch4:note7"
+    ],
+    "match_strategy": "old_text_label_run"
+  }
+]

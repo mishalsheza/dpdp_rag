@@ -1,0 +1,106 @@
+# Ingestion configuration. Paths are relative to the repository root.
+paths:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  chunks_file: data/processed/chunks.jsonl
+  patches_file: data/processed/corrigendum_patches.json
+
+# Files present in data/raw that must NOT be indexed.
+excluded:
+  - file: act_2023_gazette.pdf
+    reason: Duplicates the India Code text of the Act (act_2023_indiacode.pdf).
+
+# Spans/lines removed from every page before parsing.
+noise:
+  # The India Code watermark: a grey, 45-degree "IndiaCode" span. Other extractors
+  # split it into stray 1-2 letter lines ("In", "di", "aC", ...), so lines that are
+  # short fragments of these words are also dropped.
+  watermark_words: ["IndiaCode"]
+  watermark_colors: [0x969696]
+  watermark_fragment_max_len: 2
+  # Spans smaller than this are superscript footnote markers (e.g. "date1").
+  min_font_size: 7.5
+  # Editorial markers to strip from text (regexes).
+  editorial_patterns: ['\*(?=\w)']
+  footer_patterns:
+    - '^Uploaded by Dte\. of Printing'
+    - '^and Published by the Controller of Publications'
+  # Ruled lines shorter than this (in points) starting at the left margin mark a footnote area.
+  footnote_rule_max_width: 200
+
+# A chunk longer than this many characters is split at its top-level clauses.
+max_chunk_chars: 3000
+
+sources:
+  act:
+    file: act_2023_indiacode.pdf
+    doc_id: dpdp_act_2023
+    doc_type: act
+    gsr_no: null
+    title: The Digital Personal Data Protection Act, 2023 (22 of 2023)
+    origin: India Code (indiacode.nic.in), text as on 19 November 2025
+    # Date of assent; used only for provisions not named in G.S.R. 843(E)
+    # (section 1(1), short title) and for the long title.
+    enactment_date: 2023-08-11
+    header_max_y: 60
+    footer_min_y: 778
+    drop_footnotes: true
+    body_start_marker: 'An Act to provide for the processing of digital personal data'
+    body_end_marker: 'STATEMENT OF OBJECTS AND REASONS'
+    schedule_marker: 'THE SCHEDULE'
+    # x-coordinate separating the "Breach" and "Penalty" columns of the Schedule table.
+    schedule_penalty_column_x: 372
+    max_section: 44
+
+  rules:
+    file: gsr_846e_rules_2025.pdf
+    doc_id: dpdp_rules_2025
+    doc_type: rules
+    gsr_no: G.S.R. 846(E)
+    title: Digital Personal Data Protection Rules, 2025
+    origin: Gazette of India, Extraordinary, Part II, Sec. 3(i), 13 November 2025
+    header_max_y: 56
+    footer_min_y: 790
+    drop_footnotes: false
+    detect_tables: true
+    schedules_marker: 'FIRST SCHEDULE'
+
+  notifications:
+    - file: gsr_843e_commencement.pdf
+      doc_id: gsr_843e
+      doc_type: notification
+      gsr_no: G.S.R. 843(E)
+      title: Commencement of provisions of the DPDP Act, 2023
+      # Its lettered clauses give the commencement dates of the Act's provisions.
+      act_commencement: true
+      origin: Gazette of India, Extraordinary, Part II, Sec. 3(i), 13 November 2025
+      header_max_y: 56
+      footer_min_y: 790
+    - file: gsr_844e_board.pdf
+      doc_id: gsr_844e
+      doc_type: notification
+      gsr_no: G.S.R. 844(E)
+      title: Establishment of the Data Protection Board of India
+      origin: Gazette of India, Extraordinary, Part II, Sec. 3(i), 13 November 2025
+      header_max_y: 56
+      footer_min_y: 790
+    - file: gsr_845e_board_size.pdf
+      doc_id: gsr_845e
+      doc_type: notification
+      gsr_no: G.S.R. 845(E)
+      title: Number of Members of the Data Protection Board
+      origin: Gazette of India, Extraordinary, Part II, Sec. 3(i), 13 November 2025
+      header_max_y: 56
+      footer_min_y: 790
+
+  corrigendum:
+    file: gsr_892e_corrigendum.pdf
+    doc_id: gsr_892e
+    doc_type: corrigendum
+    gsr_no: G.S.R. 892(E)
+    title: Corrigenda to G.S.R. 846(E) (DPDP Rules, 2025)
+    origin: Gazette of India, Extraordinary, Part II, Sec. 3(i), 10 December 2025
+    header_max_y: 0
+    footer_min_y: 10000
+    # Gazette G.S.R. number whose chunks the patches are applied to.
+    target_gsr_no: G.S.R. 846(E)
