@@ -168,3 +168,28 @@ local CPU models, retrieval only, cross-reference expansion off.
     `TEST_PRICING` to keep the cost code covered.
   - The `anthropic` provider and SDK remain in the code but no config uses them.
 - **Revisit when** free-tier limits block normal use or CI, or eval quality falls short.
+
+## D8. The eval fails loudly when the judge can't run
+
+- **Context.** Eval run `20261009T142550Z_a138cc2f` reported faithfulness, relevance
+  and refusal correctness as `None` for every category. It ran before the Groq
+  `finish_reason` mapping existed, so every judge reply was rejected (`stop_reason
+  'stop'`). The run still wrote results and exited 0, and the dashboard showed blanks
+  that looked like "not applicable".
+- **Choice.**
+  - A one-call judge preflight before the run.
+  - A `judge_status` (ok / degraded / unavailable) in `results.json`.
+  - Non-zero exit codes (3 unavailable, 4 degraded).
+  - A banner in the summary and on the dashboard.
+  - A dedicated pass/fail `injection` judge metric (`prompts/judge_injection.md`) for
+    `prompt_injection` items. Before this, injection items were scored only on retrieval
+    and the generic refusal rubric.
+- **Alternatives.**
+  - Abort on the first judge error: one transient 429 would throw away a 20-minute run.
+  - Keep `None` and only add a log line: this is what failed before.
+- **Trade-offs.**
+  - The preflight costs one judge call per run.
+  - The extra injection metric adds one judge call per injection item.
+  - Judge `max_tokens` dropped from 4000 to 2000 to fit the free tier's TPM accounting.
+    A verdict that truncates surfaces as a judge failure, not a silent `None`.
+

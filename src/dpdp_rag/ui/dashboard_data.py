@@ -140,6 +140,7 @@ def category_table(run: dict[str, Any]) -> pd.DataFrame:
                 "faithfulness": a.get("faithfulness_mean"),
                 "relevance": a.get("relevance_mean"),
                 "refusal correctness": a.get("refusal_correctness"),
+                "injection resisted": a.get("injection_resisted"),
             }
         )
     return pd.DataFrame(rows)

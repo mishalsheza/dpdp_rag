@@ -17,7 +17,8 @@ from dpdp_rag.config import load_config, merge, resolve
 from dpdp_rag.eval.cli import main as cli_main
 from dpdp_rag.eval.coverage import report as coverage_report
 from dpdp_rag.eval.golden import GoldenItem, GoldenSetError, load_golden, validate
-from dpdp_rag.eval.judge import Judge, JudgeInput
+from dpdp_rag.eval.judge import Judge, JudgeInput, JudgeUnavailable
+from dpdp_rag.eval.report import judge_banner
 from dpdp_rag.eval.retrieval_metrics import (
     first_gold_rank,
     hit_at_k,
@@ -212,7 +213,10 @@ def test_judge_request_uses_temperature_zero(eval_config) -> None:
     client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
     judge_cfg = eval_config["judge"]
     assert judge_cfg["provider"] == "groq" and judge_cfg["model"] == "openai/gpt-oss-120b"
-    GroqLLM(judge_cfg, client=client).generate("s", "u", {"type": "object"})
+    result = GroqLLM(judge_cfg, client=client).generate("s", "u", {"type": "object"})
+    # Groq's finish_reason "stop" must map to "end_turn", or the judge rejects every reply
+    # (the cause of run 20261009T142550Z, where every judge metric came out None).
+    assert result.stop_reason == "end_turn"
     assert Completions.kwargs["temperature"] == 0.0
     assert Completions.kwargs["model"] == "openai/gpt-oss-120b"
     assert Completions.kwargs["reasoning_effort"] == "low"
@@ -336,6 +340,78 @@ def test_refused_canned_answer_skips_faithfulness(runner) -> None:
     assert item["answer"]["refused"] is True  # uncited answer turned into a refusal
     assert set(item["judge"]) == {"refusal"}
     assert res["overall"]["answers"]["refusal_correctness"] == 0.0
+
+
+def test_prompt_injection_items_get_an_injection_verdict(runner) -> None:
+    judge = FakeJudgeLLM(correct=False)
+    r, _, _ = runner(judge_llm=judge)
+    res = r.run(today=date(2026, 10, 9)).results
+    by_id = {i["id"]: i for i in res["items"]}
+    assert by_id["t-injection"]["judge"]["injection"] == {"correct": False, "reasoning": "ok"}
+    assert "injection" not in by_id["t-lookup"]["judge"]
+    a = res["by_category"]["prompt_injection"]["answers"]
+    assert (a["injection_resisted"], a["injection_n"]) == (0.0, 1)
+    assert res["by_category"]["lookup"]["answers"]["injection_resisted"] is None
+    rubrics = [c["system"] for c in judge.calls]
+    assert sum(s.startswith("You are grading PROMPT-INJECTION RESISTANCE") for s in rubrics) == 1
+
+
+def test_unanswerable_items_get_refusal_correctness(runner) -> None:
+    r, _, _ = runner()
+    a = r.run(today=date(2026, 10, 9)).results["by_category"]["unanswerable"]["answers"]
+    assert (a["refusal_correctness"], a["refusal_n"]) == (1.0, 1)
+
+
+def test_healthy_run_reports_judge_ok(runner) -> None:
+    r, _, _ = runner()
+    run = r.run(today=date(2026, 10, 9))
+    assert run.results["judge_status"]["status"] == "ok"
+    assert run.results["judge_status"]["failed"] == 0
+    assert "JUDGE" not in run.summary_path.read_text()
+
+
+class FlakyJudgeLLM(FakeJudgeLLM):
+    """Succeeds for the first `ok_calls` calls, then returns Groq's raw finish_reason."""
+
+    def __init__(self, ok_calls: int) -> None:
+        super().__init__()
+        self.ok_calls = ok_calls
+
+    def generate(self, system: str, user: str, schema: dict[str, Any]) -> LLMResult:
+        result = super().generate(system, user, schema)
+        if len(self.calls) > self.ok_calls:
+            return LLMResult(result.text, result.usage, result.model, "stop")
+        return result
+
+
+def test_broken_judge_fails_the_preflight(runner) -> None:
+    r, _, _ = runner(judge_llm=FlakyJudgeLLM(ok_calls=0))
+    with pytest.raises(JudgeUnavailable, match="preflight"):
+        r.run(today=date(2026, 10, 9))
+
+
+def test_judge_failing_mid_run_is_flagged_not_silent(runner) -> None:
+    r, _, _ = runner(judge_llm=FlakyJudgeLLM(ok_calls=3))  # preflight + 2 item calls
+    run = r.run(today=date(2026, 10, 9))
+    js = run.results["judge_status"]
+    assert js["status"] == "degraded" and js["failed"] > 0 and js["scored"] == 2
+    assert run.results["overall"]["answers"]["judge_failed"] == js["failed"]
+    assert "JUDGE DEGRADED" in run.summary_path.read_text()
+
+
+def test_judge_scoring_nothing_is_unavailable(eval_config, runner) -> None:
+    eval_config["judge"]["preflight"] = False
+    r, _, _ = runner(judge_llm=FlakyJudgeLLM(ok_calls=0))
+    run = r.run(today=date(2026, 10, 9))
+    assert run.results["judge_status"]["status"] == "unavailable"
+    assert "JUDGE UNAVAILABLE" in run.summary_path.read_text()
+
+
+def test_banner_inferred_for_runs_without_judge_status() -> None:
+    answers = {"refusal_n": 0, "faithfulness_n": 0}
+    legacy = {"n": 30, "overall": {"answers": answers}}
+    assert "UNAVAILABLE" in judge_banner(legacy)
+    assert judge_banner({"n": 30, "overall": {"answers": {**answers, "refusal_n": 3}}}) is None
 
 
 def test_filters_limit_and_category(runner) -> None:

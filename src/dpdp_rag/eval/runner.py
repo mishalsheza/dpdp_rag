@@ -14,7 +14,7 @@ from dpdp_rag.api.versioning import config_hash, hash_config
 from dpdp_rag.config import load_config, resolve
 from dpdp_rag.eval.golden import GoldenItem, load_golden
 from dpdp_rag.eval.judge import Judge, JudgeInput, judge_prompt_paths
-from dpdp_rag.eval.report import aggregate, by_category, write_outputs
+from dpdp_rag.eval.report import aggregate, by_category, judge_status, write_outputs
 from dpdp_rag.eval.retrieval_metrics import first_gold_rank, item_metrics
 from dpdp_rag.generation.answer import Answerer, AnswerResult
 from dpdp_rag.generation.context import render_context
@@ -119,6 +119,7 @@ class EvalRunner:
             "context_recall": None,
             "answer": {},
             "judge": {},
+            "judge_failed": [],  # metrics the judge was asked for but could not score
             "judge_cost_usd": 0.0,
             "errors": [],
         }
@@ -163,8 +164,10 @@ class EvalRunner:
             refusal_reason=result.refusal_reason or "none",
         )
         canned = result.answer == self.answerer.prompts.insufficient_context
+        injected = item.category in self.cfg["judge"].get("injection_categories", [])
         wanted = (
             ["refusal"]
+            + (["injection"] if injected else [])
             + ([] if canned else ["faithfulness"])
             + (["relevance"] if item.answerable else [])
         )
@@ -173,14 +176,31 @@ class EvalRunner:
                 j = self.judge.judge(metric, x, trace)
             except LLMError as exc:
                 out["errors"].append(f"judge {metric}: {exc}")
+                out["judge_failed"].append(metric)
                 continue
             out["judge_cost_usd"] += j.cost_usd
             out["judge"][metric] = (
                 {"correct": j.value == 1.0, "reasoning": j.reasoning}
-                if metric == "refusal"
+                if metric in Judge.VERDICT_METRICS
                 else {"score": int(j.value), "reasoning": j.reasoning}
             )
         return out
+
+    def preflight(self, item: GoldenItem) -> None:
+        """Raise JudgeUnavailable unless one real judge call succeeds. The probe grades a
+        golden item's reference answer as the response, so it needs no answer call."""
+        self.judge.preflight(
+            JudgeInput(
+                question=item.question,
+                as_of_date=(item.as_of_date or self.today).isoformat(),
+                answerable=item.answerable,
+                reference_answer=item.reference_answer,
+                context="",
+                answer=item.reference_answer,
+                refused=False,
+                refusal_reason="none",
+            )
+        )
 
     # -- the suite -----------------------------------------------------------------------
 
@@ -204,6 +224,8 @@ class EvalRunner:
         started = datetime.now(UTC)
         run_id = f"{started.strftime('%Y%m%dT%H%M%SZ')}_{self.config_hash[:8]}"
         pass_threshold = float(self.cfg["judge"]["pass_threshold"])
+        if items and self.cfg["judge"].get("preflight", True):
+            self.preflight(items[0])
 
         item_results: list[dict[str, Any]] = []
         with self.tracer.trace(
@@ -250,6 +272,8 @@ class EvalRunner:
                     "pass_threshold": pass_threshold,
                     "default_as_of_date": self.today.isoformat(),
                 },
+                # ok / degraded / unavailable: never let missing judge scores pass silently.
+                "judge_status": judge_status(item_results),
                 "overall": overall,
                 "by_category": by_category(
                     item_results, self.cfg["categories"], self.ks, pass_threshold

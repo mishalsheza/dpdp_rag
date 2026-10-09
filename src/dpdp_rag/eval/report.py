@@ -32,11 +32,15 @@ def aggregate(
             [1.0 if s >= pass_threshold else 0.0 for s in scores]
         )
         answers[f"{metric}_n"] = len(scores)
-    verdicts = [
-        1.0 if i["judge"]["refusal"]["correct"] else 0.0 for i in items if i["judge"].get("refusal")
-    ]
-    answers["refusal_correctness"] = _mean(verdicts)
-    answers["refusal_n"] = len(verdicts)
+    for metric, key in (("refusal", "refusal_correctness"), ("injection", "injection_resisted")):
+        verdicts = [
+            1.0 if i["judge"][metric]["correct"] else 0.0 for i in items if i["judge"].get(metric)
+        ]
+        answers[key] = _mean(verdicts)
+        answers[f"{metric}_n"] = len(verdicts)
+    # Judge calls that failed: a None metric with judge_failed > 0 means "judge broke",
+    # not "does not apply".
+    answers["judge_failed"] = sum(len(i.get("judge_failed", [])) for i in items)
     answers["refusal_rate"] = _mean(
         [
             1.0 if i["answer"].get("refused") else 0.0
@@ -60,6 +64,43 @@ def by_category(
     }
 
 
+def judge_status(items: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """ok: every wanted judge call scored. degraded: some calls failed or some items never
+    reached the judge (answer or retrieval error). unavailable: nothing was scored."""
+    scored = sum(len(i["judge"]) for i in items)
+    failed = sum(len(i.get("judge_failed", [])) for i in items)
+    unjudged = sum(1 for i in items if not i["answer"] or i["answer"].get("error"))
+    if items and scored == 0:
+        status = "unavailable"
+    elif failed or unjudged:
+        status = "degraded"
+    else:
+        status = "ok"
+    return {"status": status, "scored": scored, "failed": failed, "unjudged_items": unjudged}
+
+
+def judge_banner(results: dict[str, Any]) -> str | None:
+    """A one-line warning when judge metrics are missing or partial (None when healthy).
+    Runs from before judge_status existed are inferred from their errors."""
+    js = results.get("judge_status")
+    if js is None:
+        a = results.get("overall", {}).get("answers", {})
+        if not results.get("n") or a.get("refusal_n") or a.get("faithfulness_n"):
+            return None
+        js = {"status": "unavailable", "failed": None}
+    if js["status"] == "ok":
+        return None
+    if js["status"] == "unavailable":
+        return (
+            "JUDGE UNAVAILABLE: no answer was scored, so faithfulness, relevance, refusal "
+            "correctness and injection resistance are missing for this run. See item errors."
+        )
+    return (
+        f"JUDGE DEGRADED: {js['failed']} judge call(s) failed and {js['unjudged_items']} "
+        "item(s) never reached the judge; answer-quality means cover the rest only."
+    )
+
+
 def _fmt(value: float | None, pct: bool = False) -> str:
     if value is None:
         return "–"
@@ -81,13 +122,15 @@ def summary_markdown(results: dict[str, Any]) -> str:
         f"p99 {_fmt(results['latency_ms']['p99'])} ms",
         f"- Items with errors: {results['overall']['errors']}",
         "",
-        "## By category",
-        "",
     ]
+    if banner := judge_banner(results):
+        lines += [f"> **{banner}**", ""]
+    lines += ["## By category", ""]
     head = (
         ["Category", "n"]
         + [f"R@{k}" for k in ks]
         + ["MRR", f"Hit@{ks[-1]}", "Ctx recall", "Faithful", "Relevant", "Refusal ok"]
+        + ["Injection resisted"]
     )
     lines += ["| " + " | ".join(head) + " |", "|" + "---|" * len(head)]
     rows = list(results["by_category"].items()) + [("**overall**", results["overall"])]
@@ -103,18 +146,22 @@ def summary_markdown(results: dict[str, Any]) -> str:
                 _fmt(a["faithfulness_mean"]),
                 _fmt(a["relevance_mean"]),
                 _fmt(a["refusal_correctness"], pct=True),
+                _fmt(a.get("injection_resisted"), pct=True),
             ]
         )
         lines.append("| " + " | ".join(cells) + " |")
     lines += [
         "",
         "Faithfulness and relevance are mean judge scores on a 1-5 scale; refusal ok is the "
-        "share judged correct. `–` means the metric does not apply to any item in that row.",
+        "share judged correct; injection resisted is the share of prompt-injection items where "
+        "the judge found the injected instruction was not followed. `–` means the metric does "
+        "not apply to any item in that row, or the judge failed (see the banner and errors).",
         "",
         "## Items",
         "",
-        "| id | category | first gold rank | refused | faithful | relevant | refusal ok | errors |",
-        "|---|---|---|---|---|---|---|---|",
+        "| id | category | first gold rank | refused | faithful | relevant | refusal ok "
+        "| injection resisted | errors |",
+        "|---|---|---|---|---|---|---|---|---|",
     ]
     for item in results["items"]:
         j = item["judge"]
@@ -130,6 +177,7 @@ def summary_markdown(results: dict[str, Any]) -> str:
                     str(j["faithfulness"]["score"]) if j.get("faithfulness") else "–",
                     str(j["relevance"]["score"]) if j.get("relevance") else "–",
                     ("yes" if j["refusal"]["correct"] else "no") if j.get("refusal") else "–",
+                    ("yes" if j["injection"]["correct"] else "no") if j.get("injection") else "–",
                     "; ".join(item["errors"]) or "",
                 ]
             )

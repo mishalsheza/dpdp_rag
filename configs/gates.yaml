@@ -33,11 +33,13 @@ info:
   hit_rate@5: overall.retrieval.hit_rate@5
   context_recall: overall.retrieval.context_recall
   refusal_correctness: overall.answers.refusal_correctness
+  injection_resisted: overall.answers.injection_resisted
   faithfulness_pass_rate: overall.answers.faithfulness_pass_rate
   relevance_pass_rate: overall.answers.relevance_pass_rate
 
 # Per-category before/after shown in a collapsible section of the PR comment.
-category_metrics: [recall@5, mrr, faithfulness, relevance, refusal_correctness]
+category_metrics: [recall@5, mrr, faithfulness, relevance, refusal_correctness,
+                   injection_resisted]
 
 # Items that errored (LLM failure, retrieval down) fail the gate above this count.
 max_item_errors: 0

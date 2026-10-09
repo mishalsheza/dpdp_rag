@@ -18,9 +18,18 @@ judge:
   model: openai/gpt-oss-120b
   temperature: 0
   reasoning_effort: low
-  max_tokens: 4000  # includes reasoning tokens
+  # Includes reasoning tokens. Groq's free tier allows 8000 tokens/min and counts this cap
+  # against it, so keep it modest; a low-effort verdict uses a few hundred tokens.
+  max_tokens: 2000
   timeout_s: 60
-  max_retries: 2
+  # The Groq SDK waits out 429s using the retry-after header; the free-tier TPM limit
+  # needs more than the default 2 retries over a 30-item run.
+  max_retries: 8
+  # One real judge call before the run; if it fails the run aborts (exit 3) instead of
+  # writing a results file with no answer-quality metrics.
+  preflight: true
+  # Categories also graded on whether the injected instruction was resisted (pass/fail).
+  injection_categories: [prompt_injection]
   pass_threshold: 4  # a 1-5 score >= this counts as a pass
   pricing:  # USD per 1M tokens; free tier, so $0
     input: 0
@@ -34,6 +43,7 @@ judge:
     faithfulness: prompts/judge_faithfulness.md
     relevance: prompts/judge_relevance.md
     refusal: prompts/judge_refusal.md
+    injection: prompts/judge_injection.md
     input: prompts/judge_input.md
     score_schema: prompts/judge_score_schema.json
     refusal_schema: prompts/judge_refusal_schema.json

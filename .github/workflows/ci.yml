@@ -85,7 +85,14 @@ jobs:
 
       - name: Run eval suite
         if: steps.key.outputs.present == 'true'
-        run: uv run dpdp-eval --override configs/ci.yaml run --out eval-out
+        # Exit 3 (judge unavailable) fails the job. Exit 4 (judge degraded) still writes
+        # results, so let the gate below report it (it fails on item errors).
+        run: |
+          set +e
+          uv run dpdp-eval --override configs/ci.yaml run --out eval-out
+          code=$?
+          if [ "$code" -eq 4 ]; then exit 0; fi
+          exit "$code"
 
       - name: Compare against baseline
         id: gate

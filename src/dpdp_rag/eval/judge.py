@@ -1,4 +1,5 @@
-"""LLM-as-judge for faithfulness, relevance and refusal-correctness (rubrics in prompts/)."""
+"""LLM-as-judge for faithfulness, relevance, refusal correctness and prompt-injection
+resistance (rubrics in prompts/)."""
 
 from __future__ import annotations
 
@@ -30,7 +31,7 @@ class _Verdict(BaseModel):
 @dataclass(frozen=True)
 class Judgement:
     metric: str
-    value: float  # 1-5 score, or 1.0 / 0.0 for refusal correctness
+    value: float  # 1-5 score, or 1.0 / 0.0 for the pass/fail metrics (VERDICT_METRICS)
     reasoning: str
     usage: Usage
     cost_usd: float
@@ -52,8 +53,13 @@ def judge_prompt_paths(judge_cfg: dict[str, Any]) -> dict[str, Path]:
     return {name: resolve(p) for name, p in judge_cfg["prompt_files"].items()}
 
 
+class JudgeUnavailable(LLMError):
+    """The judge cannot run at all (bad key, model, quota or output contract)."""
+
+
 class Judge:
-    METRICS = ("faithfulness", "relevance", "refusal")
+    METRICS = ("faithfulness", "relevance", "refusal", "injection")
+    VERDICT_METRICS = ("refusal", "injection")  # pass/fail; the others are 1-5 scores
 
     def __init__(self, judge_cfg: dict[str, Any], llm: LLMClient) -> None:
         self.cfg = judge_cfg
@@ -77,7 +83,8 @@ class Judge:
         )
 
     def judge(self, metric: str, x: JudgeInput, trace: Trace = NOOP_TRACE) -> Judgement:
-        schema = self.refusal_schema if metric == "refusal" else self.score_schema
+        verdict_metric = metric in self.VERDICT_METRICS
+        schema = self.refusal_schema if verdict_metric else self.score_schema
         user = self._user(x)
         with trace.step(
             f"judge:{metric}", as_type="generation", input=user, model=self.llm.model
@@ -90,7 +97,7 @@ class Judge:
         if result.stop_reason != "end_turn":
             raise LLMError(f"judge {metric}: stop_reason {result.stop_reason!r}")
         try:
-            if metric == "refusal":
+            if verdict_metric:
                 verdict = _Verdict.model_validate_json(result.text)
                 value, reasoning = (1.0 if verdict.correct else 0.0), verdict.reasoning
             else:
@@ -101,3 +108,11 @@ class Judge:
         except ValidationError as exc:
             raise LLMError(f"judge {metric}: output does not match schema: {exc}") from exc
         return Judgement(metric, value, reasoning, result.usage, cost)
+
+    def preflight(self, x: JudgeInput) -> None:
+        """One real judge call before a run, so a broken judge fails the run up front
+        instead of producing a results file with no answer-quality metrics."""
+        try:
+            self.judge("relevance", x)
+        except LLMError as exc:
+            raise JudgeUnavailable(f"judge preflight failed ({self.llm.model}): {exc}") from exc

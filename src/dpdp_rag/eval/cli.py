@@ -1,4 +1,7 @@
-"""Evaluation CLI: `uv run dpdp-eval run|validate` (or `python -m dpdp_rag.eval`)."""
+"""Evaluation CLI: `uv run dpdp-eval run|validate` (or `python -m dpdp_rag.eval`).
+
+Exit codes for `run`: 0 ok, 2 budget exceeded, 3 judge unavailable (preflight failed or
+nothing scored), 4 judge degraded (some judge calls failed; results are still written)."""
 
 from __future__ import annotations
 
@@ -72,6 +75,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"OK: {len(items)} questions. " + ", ".join(f"{k}={v}" for k, v in counts.items()))
         return 0
 
+    from dpdp_rag.eval.judge import JudgeUnavailable
+    from dpdp_rag.eval.report import judge_banner
     from dpdp_rag.eval.runner import EvalRunner  # imports the SDKs; not needed to validate
     from dpdp_rag.generation.llm_cache import BudgetExceeded
 
@@ -86,8 +91,14 @@ def main(argv: list[str] | None = None) -> int:
     except BudgetExceeded as exc:
         print(f"Eval aborted: {exc}", file=sys.stderr)
         return 2
+    except JudgeUnavailable as exc:
+        print(f"Eval aborted, no results written: {exc}", file=sys.stderr)
+        return 3
     print(run.summary_path.read_text(encoding="utf-8"))
     print(f"Wrote {run.results_path} and {run.summary_path}")
+    if banner := judge_banner(run.results):
+        print(f"\n*** {banner} ***", file=sys.stderr)
+        return 3 if run.results["judge_status"]["status"] == "unavailable" else 4
     return 0
 
 

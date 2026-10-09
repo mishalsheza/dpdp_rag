@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from dpdp_rag.config import load_system_config, resolve
+from dpdp_rag.eval.report import judge_banner
 from dpdp_rag.ui import dashboard_data as dd
 from dpdp_rag.ui.charts import line_chart
 
@@ -154,6 +155,8 @@ else:
         )
     latest = runs[-1]
     st.subheader(f"Latest run by category: `{latest['run_id']}` (n={latest.get('n')})")
+    if banner := judge_banner(latest):
+        st.error(banner, icon="⚠️")
     st.dataframe(dd.category_table(latest), hide_index=True, width="stretch")
     with st.expander("Table view of all runs"):
         st.dataframe(
