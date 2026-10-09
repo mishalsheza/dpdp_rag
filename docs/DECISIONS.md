@@ -106,6 +106,8 @@ local CPU models, retrieval only, cross-reference expansion off.
 
 ## D5. Answer model: Claude Haiku 5.5 rather than a larger model
 
+> **Superseded by D7** (Groq free tier). Kept for the record.
+
 - **Context.** Answers are short, grounded in the supplied provisions (`generation.k` = 8
   plus cross-referenced Act sections), with
   structured JSON output. Quality depends mostly on retrieval and the prompt rules
@@ -149,3 +151,20 @@ local CPU models, retrieval only, cross-reference expansion off.
   operations, but would need a database container in CI.
 - **Revisit when** the deployment platform already provides Postgres, or the corpus grows
   past what one Qdrant node serves comfortably (`‹TBD›` vectors).
+
+## D7. LLM provider: Groq free tier (`openai/gpt-oss-120b`) instead of Anthropic
+
+- **Context.** The project must run at no cost and without Anthropic/Claude models. This
+  replaces D5's answer model and the Claude Haiku 4.5 judge.
+- **Choice.** `openai/gpt-oss-120b` on Groq for both answering (`reasoning_effort:
+  medium`) and judging (temperature 0, `reasoning_effort: low`). It supports Groq's strict
+  `json_schema` structured outputs, so replies always match `prompts/*schema.json`.
+- **Evidence.** A warm `/ask` took about 1.4 s and about 2.8K tokens, and cited the right
+  provision (Rule 7(2) for the 72-hour breach report). Eval scores: `‹TBD›`.
+- **Trade-offs.**
+  - Free-tier rate limits (tokens per minute and per day) cap throughput and eval size.
+  - The judge is the same model as the answerer (self-preference risk; docs/EVAL.md).
+  - `cost_usd` is always $0, so `budget_usd` no longer guards anything; tests use a paid
+    `TEST_PRICING` to keep the cost code covered.
+  - The `anthropic` provider and SDK remain in the code but no config uses them.
+- **Revisit when** free-tier limits block normal use or CI, or eval quality falls short.

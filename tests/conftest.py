@@ -5,9 +5,16 @@ from typing import Any
 
 import pytest
 
-from dpdp_rag.config import load_config, merge, resolve
+from dpdp_rag.config import OVERRIDES_ENV, load_config, merge, resolve
 from dpdp_rag.ingest.models import Chunk
 from dpdp_rag.ingest.pipeline import IngestResult, build
+
+
+@pytest.fixture(autouse=True)
+def _no_local_config_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A developer's .env may set DPDP_CONFIG_OVERRIDES (e.g. groq.yaml); create_app's
+    # load_dotenv would then leak it into later tests. Set but empty, it is never loaded.
+    monkeypatch.setenv(OVERRIDES_ENV, "")
 
 
 @pytest.fixture(scope="session")
@@ -48,12 +55,26 @@ def retrieval_config() -> dict[str, Any]:
     )
 
 
+# A paid price list for tests, so cost accounting and budgets are exercised even though
+# the configured Groq free tier costs $0. USD per 1M tokens.
+TEST_PRICING: dict[str, Any] = {
+    "input": 1.00,
+    "output": 5.00,
+    "long_context_threshold": 100000,
+    "long_input": 2.00,
+    "long_output": 10.00,
+    "cache_write_multiplier": 1.25,
+    "cache_read_multiplier": 0.10,
+}
+
+
 @pytest.fixture
 def api_config(retrieval_config: dict[str, Any], tmp_path: Path) -> dict[str, Any]:
     """Retrieval over the tiny fixture plus throwaway metrics/cache paths, no tracing."""
     return merge(
         retrieval_config,
         {
+            "llm": {"pricing": TEST_PRICING},
             "generation": {"k": 4},
             "cross_refs": {"enabled": True},
             "metrics": {"db_path": str(tmp_path / "metrics.db")},
@@ -70,5 +91,9 @@ GOLDEN_TINY = FIXTURES / "golden_tiny.jsonl"
 def eval_config(tmp_path: Path) -> dict[str, Any]:
     return merge(
         load_config("eval.yaml"),
-        {"golden_file": str(GOLDEN_TINY), "output_dir": str(tmp_path / "runs")},
+        {
+            "golden_file": str(GOLDEN_TINY),
+            "output_dir": str(tmp_path / "runs"),
+            "judge": {"pricing": TEST_PRICING},
+        },
     )

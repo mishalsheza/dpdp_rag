@@ -1,8 +1,8 @@
 # The whole stack locally: `docker compose up --build`
 #   UI  http://localhost:8501   (chat + metrics dashboard)
 #   API http://localhost:8000   (POST /ask, /healthz, /version)
-# Put ANTHROPIC_API_KEY (and optional LANGFUSE_*) in .env. For Qdrant Cloud instead of
-# the local container, set QDRANT_URL / QDRANT_API_KEY in .env and drop the qdrant service.
+# Put GROQ_API_KEY (and optional LANGFUSE_*) in .env. For Qdrant Cloud instead of the
+# local container, set QDRANT_URL / QDRANT_API_KEY in .env and drop the qdrant service.
 
 x-app: &app
   build: .
@@ -13,7 +13,8 @@ x-app: &app
   volumes:
     - ./data:/app/data  # chunks, metrics.db, caches and eval runs live on the host
   environment: &app-env
-    DPDP_CONFIG_OVERRIDES: docker.yaml
+    # docker.yaml, then any overrides set in .env
+    DPDP_CONFIG_OVERRIDES: docker.yaml${DPDP_CONFIG_OVERRIDES:+,${DPDP_CONFIG_OVERRIDES}}
     QDRANT_URL: http://qdrant:6333
 
 services:

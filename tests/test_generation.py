@@ -1,5 +1,5 @@
 """Prompt construction (temporal status, corrections, untrusted text), pinpoints, cost,
-the Anthropic adapter and config_hash. The LLM is always mocked."""
+the Groq and Anthropic adapters and config_hash. The LLM is always mocked."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from dpdp_rag.config import merge
 from dpdp_rag.generation.answer import Answerer, LLMAnswer
 from dpdp_rag.generation.context import render_chunk, status, untrusted
 from dpdp_rag.generation.cost import Usage, cost_usd
-from dpdp_rag.generation.llm import AnthropicLLM
+from dpdp_rag.generation.llm import AnthropicLLM, GroqLLM
 from dpdp_rag.generation.pinpoint import pinpoint
 from dpdp_rag.generation.prompts import Prompts
 from dpdp_rag.ingest.models import Chunk
@@ -249,7 +249,7 @@ def test_cost_long_context_rates() -> None:
     assert cost_usd(u, PRICING) == pytest.approx((100_001 * 0.50 + 1_000 * 2.50) / 1e6)
 
 
-# -- Anthropic adapter (mocked client) -----------------------------------------------------
+# -- LLM adapters (mocked clients) ---------------------------------------------------------
 
 
 class _FakeMessages:
@@ -278,7 +278,13 @@ def test_anthropic_adapter_request_and_usage(api_config) -> None:
         stop_reason="end_turn",
     )
     messages = _FakeMessages(response)
-    llm = AnthropicLLM(api_config["llm"], client=SimpleNamespace(messages=messages))
+    cfg = api_config["llm"] | {
+        "provider": "anthropic",
+        "model": "claude-haiku-5-5",
+        "effort": "medium",
+        "cache_system_prompt": True,
+    }
+    llm = AnthropicLLM(cfg, client=SimpleNamespace(messages=messages))
     schema = {"type": "object"}
     result = llm.generate("SYSTEM", "USER", schema)
     kw = messages.kwargs
@@ -296,6 +302,40 @@ def test_anthropic_adapter_request_and_usage(api_config) -> None:
     assert result.usage == Usage(
         input_tokens=11, output_tokens=22, cache_read_tokens=33, cache_write_tokens=0
     )
+
+
+def test_groq_adapter_request_and_usage(api_config) -> None:
+    cfg = api_config["llm"]
+    response = SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(content='{"answer": "x"}'), finish_reason="stop"
+            )
+        ],
+        usage=SimpleNamespace(
+            prompt_tokens=50,
+            completion_tokens=22,
+            prompt_tokens_details=SimpleNamespace(cached_tokens=10),
+        ),
+        model="openai/gpt-oss-120b",
+    )
+    completions = _FakeMessages(response)
+    client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+    schema = {"type": "object"}
+    result = GroqLLM(cfg, client=client).generate("SYSTEM", "USER", schema)
+    kw = completions.kwargs
+    assert kw["model"] == "openai/gpt-oss-120b"
+    assert kw["messages"] == [
+        {"role": "system", "content": "SYSTEM"},
+        {"role": "user", "content": "USER"},
+    ]
+    assert kw["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {"name": "answer", "schema": schema, "strict": True},
+    }
+    assert kw["reasoning_effort"] == "medium" and "temperature" not in kw
+    assert result.text == '{"answer": "x"}' and result.stop_reason == "stop"
+    assert result.usage == Usage(input_tokens=40, output_tokens=22, cache_read_tokens=10)
 
 
 def test_schema_file_matches_answer_model() -> None:

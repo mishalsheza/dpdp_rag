@@ -109,7 +109,15 @@ class CachingLLM:
         return result
 
 
-_PARAM_KEYS = ("model", "max_tokens", "effort", "temperature", "cache_system_prompt")
+_PARAM_KEYS = (
+    "provider",
+    "model",
+    "max_tokens",
+    "effort",
+    "reasoning_effort",
+    "temperature",
+    "cache_system_prompt",
+)
 
 
 def make_llm(
@@ -118,7 +126,7 @@ def make_llm(
     budget: Budget | None = None,
     inner: LLMClient | None = None,
 ) -> CachingLLM:
-    """An Anthropic client wrapped with the disk cache (if enabled) and the budget."""
+    """An LLM client wrapped with the disk cache (if enabled) and the budget."""
     kv = None
     if cache_cfg and cache_cfg.get("enabled"):
         from dpdp_rag.config import resolve

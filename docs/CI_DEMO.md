@@ -18,7 +18,7 @@ The tests are offline: the LLM is mocked and Qdrant runs in memory. They need no
 1. `dpdp-eval validate`. Fails if a golden question references a chunk id that is no
    longer in `chunks.jsonl`.
 2. `dpdp-eval --override configs/ci.yaml run`. Runs the full golden set through the real
-   system, with Claude answering, and judges the answers. `configs/ci.yaml`:
+   system, with Groq answering, and judges the answers. `configs/ci.yaml`:
    - uses in-memory Qdrant, so no Qdrant service is needed
    - turns on the embedding cache and the LLM-call cache
    - caps uncached spend at `budget_usd` ($0.50)
@@ -57,24 +57,23 @@ missing from the run.
 - **How the caches move between runs:** both files are restored with `actions/cache`
   using a per-run key and a prefix restore-key, so every run starts from the newest cache
   and saves an updated one. Runs on `main` warm the cache that PRs restore from.
-- **Judge at temperature 0:** `claude-haiku-4-5`. Claude Haiku 5.5 rejects any
-  temperature other than its default, so the judge uses Haiku 4.5, which accepts
-  `temperature: 0`. The answer model stays `claude-haiku-5-5`.
+- **Judge at temperature 0:** `openai/gpt-oss-120b` on Groq, the same model as the
+  answerer (see docs/EVAL.md).
 - **Spend cap:** `budget_usd` aborts the run, failing the job with a "❌ Eval run failed"
   comment, before a call that would go over the cap.
-- **Cost estimate** (not yet measured): an uncached run of the 8-question set is roughly
-  $0.10–0.20, mostly judge calls at $1 / $5 per million tokens. Fully cached reruns cost
-  about $0. The comment shows the actual spend and the cache hit counts.
+- **Cost:** $0 on Groq's free tier, so `budget_usd` never trips. The binding limit is
+  the free tier's rate limits; the LLM-call cache keeps reruns from spending quota. The
+  comment shows the cache hit counts.
 
 ### Forks and missing secrets
 
-Without the `ANTHROPIC_API_KEY` secret (e.g. a PR from a fork), the eval doesn't run and
+Without the `GROQ_API_KEY` secret (e.g. a PR from a fork), the eval doesn't run and
 the comment says "⏭️ Eval gate skipped". Lint and tests still run.
 
 ## One-time setup
 
 1. **Secrets.** In the repo: Settings → Secrets and variables → Actions. Add
-   `ANTHROPIC_API_KEY`. Optionally add `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` and
+   `GROQ_API_KEY`. Optionally add `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY` and
    `LANGFUSE_HOST` to trace CI runs.
 2. **Branch protection.** Settings → Branches → rule for `main`. Require the status
    checks **Lint + tests** and **Eval gate**.
@@ -85,7 +84,7 @@ the comment says "⏭️ Eval gate skipped". Lint and tests still run.
      artifact. Using CI's own run means the baseline comes from the same environment.
    - Or run it locally with the same settings:
      `uv run dpdp-eval --override configs/ci.yaml run --out /tmp/base`. This needs
-     `ANTHROPIC_API_KEY`; Docker isn't needed.
+     `GROQ_API_KEY`; Docker isn't needed.
    - Then record it and commit the change in its own PR:
 
      ```bash

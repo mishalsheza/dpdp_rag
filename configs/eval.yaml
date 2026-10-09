@@ -12,25 +12,24 @@ retrieval:
   mrr_depth: 10  # ranks considered for MRR; a gold chunk below this counts as 0
 
 judge:
-  # Temperature 0 for reproducible judging. Claude Haiku 5.5 rejects any non-default
-  # temperature (400), so the judge is Claude Haiku 4.5, which accepts it and supports
-  # structured outputs. Haiku 4.5 has no `effort` parameter, so effort is null (omitted).
-  model: claude-haiku-4-5
+  # Groq free tier, temperature 0 for reproducible judging. Same model as the answerer:
+  # it is the Groq model with strict structured outputs (see docs/EVAL.md, Limitations).
+  provider: groq
+  model: openai/gpt-oss-120b
   temperature: 0
-  effort: null
-  max_tokens: 2000
+  reasoning_effort: low
+  max_tokens: 4000  # includes reasoning tokens
   timeout_s: 60
   max_retries: 2
-  cache_system_prompt: true
   pass_threshold: 4  # a 1-5 score >= this counts as a pass
-  pricing:  # USD per 1M tokens (claude-haiku-4-5; 200K context, no long-context tier)
-    input: 1.00
-    output: 5.00
+  pricing:  # USD per 1M tokens; free tier, so $0
+    input: 0
+    output: 0
     long_context_threshold: 1000000000
-    long_input: 1.00
-    long_output: 5.00
-    cache_write_multiplier: 1.25
-    cache_read_multiplier: 0.10
+    long_input: 0
+    long_output: 0
+    cache_write_multiplier: 1.0
+    cache_read_multiplier: 1.0
   prompt_files:
     faithfulness: prompts/judge_faithfulness.md
     relevance: prompts/judge_relevance.md

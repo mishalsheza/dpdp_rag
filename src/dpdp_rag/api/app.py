@@ -118,11 +118,7 @@ def create_app(
         tracer.flush()
 
     llm_cfg = config["llm"]
-    answer_model = (
-        llm_cfg["model"]
-        if llm_cfg.get("provider", "anthropic") == "anthropic"
-        else (llm_cfg["provider"])
-    )
+    answer_model = "stub" if llm_cfg.get("provider") == "stub" else llm_cfg["model"]
     app = FastAPI(title="dpdp-rag", lifespan=lifespan)
     app.state.config_hash = chash
     app.state.metrics = metrics

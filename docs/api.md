@@ -5,7 +5,7 @@ docker compose up -d && uv run dpdp-index   # retrieval backend (see docs/retrie
 uv run dpdp-api                              # or: python -m dpdp_rag.api  (host/port: api.*)
 ```
 
-Set `ANTHROPIC_API_KEY` in `.env`, or use an `ant auth login` profile. Langfuse tracing
+Set `GROQ_API_KEY` in `.env` (Groq free tier). Langfuse tracing
 turns on when `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are set; `LANGFUSE_HOST` is
 optional.
 
@@ -25,9 +25,9 @@ optional.
   "as_of_date": "2026-01-01",
   "latency_ms": 812.4,
   "tokens": {"input": 2310, "output": 402, "cache_read": 1450, "cache_write": 0, "total": 4162},
-  "cost_usd": 0.000447,
+  "cost_usd": 0.0,
   "config_hash": "b556…",
-  "model": "claude-haiku-5-5",
+  "model": "openai/gpt-oss-120b",
   "cached": false
 }
 ```
@@ -71,9 +71,10 @@ are local changes.
 3. **Untrusted input.** Question and document text are HTML-escaped (`&`, `<`, `>`), so
    they can't close the surrounding tags. The system prompt tells the model that anything
    inside them is data, never instructions.
-4. **Call Claude.** `claude-haiku-5-5` is called through `client.messages.create` with
-   `output_config.format` set to the JSON schema in `prompts/answer_schema.json`, at
-   effort `medium`. Thinking is left at the model's default (adaptive).
+4. **Call the model.** `openai/gpt-oss-120b` on Groq is called through
+   `client.chat.completions.create` with a strict `json_schema` response format built from
+   `prompts/answer_schema.json`, at `reasoning_effort: medium`. On the free tier the
+   reported `cost_usd` is always 0.
 5. **Validate.** The model's JSON is checked against the `LLMAnswer` model. Then:
    - Citations to chunks that weren't supplied are dropped, and duplicates are merged.
    - Pinpoint labels and in-force flags come from chunk metadata, not from the model.

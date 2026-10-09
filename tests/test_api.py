@@ -253,7 +253,7 @@ def test_healthz_and_version(make, api_config, monkeypatch) -> None:
     assert client.get("/version").json() == {
         "git_sha": "abc123",
         "config_hash": config_hash(api_config),
-        "model": "claude-haiku-5-5",
+        "model": api_config["llm"]["model"],
     }
 
 

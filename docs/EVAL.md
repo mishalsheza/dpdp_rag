@@ -2,7 +2,7 @@
 
 ```bash
 uv run dpdp-eval validate        # check data/golden.jsonl against data/processed/chunks.jsonl
-uv run dpdp-eval run             # run the suite (calls Claude for answers and judging)
+uv run dpdp-eval run             # run the suite (calls Groq for answers and judging)
 uv run dpdp-eval run --category temporal --limit 3 --today 2026-10-09 --out /tmp/run
 uv run dpdp-eval-coverage        # chunks no golden question covers (labelling guide)
 uv run dpdp-eval-gate --results <run>/results.json      # compare with eval/baseline.json
@@ -13,7 +13,7 @@ CI runs the suite on every PR and gates on regressions; see `docs/CI_DEMO.md`.
 
 The suite is configured in `configs/eval.yaml`, and the system under test in
 `configs/default.yaml` (named by `system_config`). A run needs the retrieval backend
-(`docker compose up -d`, `uv run dpdp-index`) and an Anthropic credential.
+(`docker compose up -d`, `uv run dpdp-index`) and `GROQ_API_KEY`.
 
 Each run writes `results.json` and `summary.md` to `data/eval_runs/<run_id>/`. The run id
 is a UTC timestamp followed by the first 8 characters of the config_hash.
@@ -146,16 +146,13 @@ A category with no items is still listed, with `–` in place of values.
 
 ### Judge model and settings
 
-- **Model:** `claude-haiku-4-5` at **temperature 0**, called through the same
-  `AnthropicLLM` client as the answer model.
-  - Why this model: temperature 0 was requested for reproducible judging, and Claude
-    Haiku 5.5 rejects any non-default temperature with a 400. Haiku 4.5 accepts it and
-    supports structured outputs.
-  - Haiku 4.5 has no `effort` parameter, so `judge.effort` is `null` and isn't sent.
-  - Price: $1 / $5 per million tokens, about 10× Haiku 5.5. With 8 items this is still
-    cents per uncached run.
-  - The answer model stays `claude-haiku-5-5`, so the judge is a different model from
-    the system it grades.
+- **Model:** `openai/gpt-oss-120b` on Groq's free tier at **temperature 0** and
+  `reasoning_effort: low`, called through the same `GroqLLM` client as the answer model.
+  - Why this model: it is the Groq model with strict `json_schema` structured outputs,
+    so judge replies always match the score schema, and it accepts temperature 0.
+  - Price: $0 on the free tier. The limits are rate limits (tokens per minute and per
+    day), so a large golden set may need to be run in parts (`--category`, `--limit`).
+  - It is the same model as the answerer; see Known limitations.
 - **Output:** constrained by a JSON schema:
   - an integer `score` from the enum 1–5 with `reasoning`, or
   - a boolean `correct` with `reasoning`
@@ -190,8 +187,7 @@ A category with no items is still listed, with `–` in place of values.
 
 ## Baseline so far
 
-No full run has been made yet, because it needs an Anthropic credential and the Qdrant
-index. As a free sanity check, **BM25-only** retrieval over all 364 chunks (no dense
+No full run has been made yet. It needs `GROQ_API_KEY` and the Qdrant index. As a free sanity check, **BM25-only** retrieval over all 364 chunks (no dense
 retrieval, no model calls) gives these first-gold ranks for the seed items:
 
 | Item | First gold rank |
@@ -216,9 +212,9 @@ The temporal and scenario questions are the hard ones for lexical retrieval.
   were written by an AI assistant and not yet checked by a person. Mistakes in the gold
   labels or reference answers become mistakes in the scores.
 - **Judge bias.** The judge is an LLM:
-  - **Same family as the answer model:** it is Claude Haiku 4.5 grading Claude Haiku
-    5.5, so it may still prefer the system's phrasing (self-preference).
-  - **Run-to-run variation:** temperature 0 on Haiku 4.5 reduces it but doesn't remove
+  - **Same model as the answerer:** gpt-oss-120b grades its own answers, so it may
+    prefer the system's phrasing (self-preference). Spot-check judge reasonings.
+  - **Run-to-run variation:** temperature 0 reduces it but doesn't remove
     it. CI also caches judge calls and uses a noise tolerance (docs/CI_DEMO.md).
   - **Rubric limits:** it can be lenient on long, confident answers, it may miss subtle
     legal errors, and its 1–5 scale is coarse.

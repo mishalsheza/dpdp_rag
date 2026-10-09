@@ -319,7 +319,7 @@ def test_ci_override_merges_both_configs(tmp_path) -> None:
     assert str(cfg["default_as_of_date"]) == "2026-10-09"
     assert system["qdrant"]["location"] == ":memory:" and system["qdrant"]["auto_index"]
     assert system["embedding"]["cache"]["enabled"] is True
-    assert system["llm"]["model"] == "claude-haiku-5-5"  # untouched keys survive
+    assert system["llm"]["model"] == "openai/gpt-oss-120b"  # untouched keys survive
     bad = tmp_path / "bad.yaml"
     bad.write_text("judge: {}\n")
     with pytest.raises(SystemExit, match="unknown sections"):

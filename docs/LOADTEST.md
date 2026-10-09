@@ -5,7 +5,7 @@
 
 ## Cost-free run: serving path only (stub LLM)
 
-`configs/loadtest.yaml` replaces Claude with a stub that cites the top document and labels
+`configs/loadtest.yaml` replaces the LLM with a stub that cites the top document and labels
 its answer `[stub answer: no language model was called]`. It also:
 
 - keeps Qdrant in memory
@@ -69,18 +69,16 @@ POST     /ask           14     16     18     19     25     35     73    110    4
   and p99 79 ms. These are API-internal latencies, without client and HTTP overhead. The
   dashboard (`uv run streamlit run src/dpdp_rag/ui/app.py` with the same
   `DPDP_CONFIG_OVERRIDES`) shows them.
-- **These are not end-user latencies.** With Claude Haiku, each uncached `/ask` adds the
-  model's time to generate the answer, likely around a second or more. That hasn't been
-  measured yet. Throughput then depends mainly on the Anthropic rate limits for the
-  account, not on this server.
+- **These are not end-user latencies.** With Groq, each uncached `/ask` adds the model's
+  time to generate the answer (about 1.4 s in a single warm request). Throughput then
+  depends mainly on Groq's free-tier rate limits, not on this server.
 - **Cold start:** the first request after start-up embeds the whole corpus when Qdrant
   is in memory (about 40 s here). With docker-compose, the indexer does this once ahead
   of time.
 
-## Real-model run (costs money)
+## Real-model run (uses free-tier quota)
 
 To measure end-to-end latency, drop the stub with `DPDP_CONFIG_OVERRIDES=` (empty), set
-`ANTHROPIC_API_KEY`, start Qdrant, run `uv run dpdp-index`, and run locust with fewer
-users and a short duration. The cost is roughly requests × the per-request cost reported
-by `/ask`. The response cache is on by default, so repeated questions will be served from
+`GROQ_API_KEY`, start Qdrant, run `uv run dpdp-index`, and run locust with fewer users
+and a short duration. Expect 429s once Groq's free-tier rate limits are hit. The response cache is on by default, so repeated questions will be served from
 it; set `api.response_cache.enabled: false` to measure model calls.

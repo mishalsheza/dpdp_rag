@@ -41,7 +41,7 @@ jobs:
       contents: read
       pull-requests: write  # sticky before/after comment
     env:
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
       LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
       LANGFUSE_HOST: ${{ secrets.LANGFUSE_HOST }}
@@ -77,7 +77,7 @@ jobs:
       - name: Check for API key
         id: key
         run: |
-          if [ -n "$ANTHROPIC_API_KEY" ]; then
+          if [ -n "$GROQ_API_KEY" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
@@ -104,7 +104,7 @@ jobs:
             echo '<!-- dpdp-eval-gate -->'
             echo '## ⏭️ Eval gate skipped'
             echo ''
-            echo 'No `ANTHROPIC_API_KEY` secret is available to this run (for example a PR'
+            echo 'No `GROQ_API_KEY` secret is available to this run (for example a PR'
             echo 'from a fork), so the eval suite did not run. Lint and tests still ran.'
           } > eval-out/comment.md
 

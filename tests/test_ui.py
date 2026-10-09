@@ -406,7 +406,8 @@ def test_compose_defines_the_stack() -> None:
     assert set(services) == {"qdrant", "indexer", "api", "ui"}
     assert services["api"]["depends_on"]["indexer"]["condition"] == "service_completed_successfully"
     assert services["ui"]["depends_on"]["api"]["condition"] == "service_healthy"
-    assert services["api"]["environment"]["DPDP_CONFIG_OVERRIDES"] == "docker.yaml"
+    # docker.yaml always applies first; .env may append more (e.g. groq.yaml).
+    assert services["api"]["environment"]["DPDP_CONFIG_OVERRIDES"].startswith("docker.yaml${")
     assert services["ui"]["environment"]["DPDP_API_URL"] == "http://api:8000"
     docker_cfg = load_config("docker.yaml")
     assert docker_cfg["api"]["host"] == "0.0.0.0"
