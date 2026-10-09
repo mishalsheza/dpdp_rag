@@ -6,24 +6,30 @@ import hashlib
 import json
 import os
 import subprocess
+from pathlib import Path
 from typing import Any
 
 from dpdp_rag.config import REPO_ROOT
 from dpdp_rag.generation.prompts import prompt_paths
 
 
+def hash_config(config: dict[str, Any], files: dict[str, Path]) -> str:
+    """sha256 over the canonical JSON of `config` and the bytes of each named file."""
+    h = hashlib.sha256()
+    h.update(json.dumps(config, sort_keys=True, default=str, separators=(",", ":")).encode())
+    for name, path in sorted(files.items()):
+        h.update(f"\0{name}\0".encode())
+        h.update(path.read_bytes())
+    return h.hexdigest()
+
+
 def config_hash(config: dict[str, Any]) -> str:
-    """sha256 over the canonical JSON of `config` and the bytes of every prompt file.
+    """sha256 of the system config plus every prompt file it names.
 
     Any change to a setting or to a prompt changes the hash, so metrics, traces and
     cached responses can be attributed to the exact configuration that produced them.
     """
-    h = hashlib.sha256()
-    h.update(json.dumps(config, sort_keys=True, default=str, separators=(",", ":")).encode())
-    for name, path in sorted(prompt_paths(config).items()):
-        h.update(f"\0{name}\0".encode())
-        h.update(path.read_bytes())
-    return h.hexdigest()
+    return hash_config(config, prompt_paths(config))
 
 
 def git_sha() -> str:

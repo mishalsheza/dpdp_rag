@@ -91,6 +91,9 @@ class _RecordingTrace:
         self.record["output"] = output
         self.record["end_metadata"] = metadata
 
+    def score(self, name: str, value: float, comment: str | None = None) -> None:
+        self.record.setdefault("scores", {})[name] = value
+
 
 class _RecordingStep:
     def __init__(self, step: dict[str, Any]) -> None:

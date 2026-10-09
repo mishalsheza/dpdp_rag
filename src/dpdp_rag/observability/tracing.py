@@ -34,6 +34,8 @@ class Trace(Protocol):
 
     def end(self, output: Any, metadata: dict[str, Any] | None = None) -> None: ...
 
+    def score(self, name: str, value: float, comment: str | None = None) -> None: ...
+
 
 class Tracer(Protocol):
     def trace(
@@ -54,6 +56,9 @@ class _NoopTrace:
         yield _NoopStep()
 
     def end(self, output: Any, metadata: dict[str, Any] | None = None) -> None:
+        return None
+
+    def score(self, name: str, value: float, comment: str | None = None) -> None:
         return None
 
 
@@ -108,6 +113,11 @@ class _LangfuseTrace:
     def end(self, output: Any, metadata: dict[str, Any] | None = None) -> None:
         self.output = output
         self._root.update(output=output, metadata=metadata)
+
+    def score(self, name: str, value: float, comment: str | None = None) -> None:
+        self._client.score_current_trace(
+            name=name, value=value, data_type="NUMERIC", comment=comment
+        )
 
 
 class LangfuseTracer:

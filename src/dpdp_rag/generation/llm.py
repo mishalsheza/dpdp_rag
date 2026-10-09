@@ -61,7 +61,11 @@ class AnthropicLLM:
         )
 
     def _create(self, system_block: dict[str, Any], user: str, schema: dict[str, Any]) -> Any:
+        extra: dict[str, Any] = {}
+        if self._cfg.get("temperature") is not None:  # only for models that accept it
+            extra["temperature"] = float(self._cfg["temperature"])
         return self._client.messages.create(
+            **extra,
             model=self.model,
             max_tokens=int(self._cfg["max_tokens"]),
             system=[system_block],

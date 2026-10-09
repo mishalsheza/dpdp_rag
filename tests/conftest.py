@@ -61,3 +61,14 @@ def api_config(retrieval_config: dict[str, Any], tmp_path: Path) -> dict[str, An
             "tracing": {"langfuse_enabled": False},
         },
     )
+
+
+GOLDEN_TINY = FIXTURES / "golden_tiny.jsonl"
+
+
+@pytest.fixture
+def eval_config(tmp_path: Path) -> dict[str, Any]:
+    return merge(
+        load_config("eval.yaml"),
+        {"golden_file": str(GOLDEN_TINY), "output_dir": str(tmp_path / "runs")},
+    )

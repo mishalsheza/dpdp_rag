@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "reasoning": {"type": "string"},
+    "score": {"type": "integer", "enum": [1, 2, 3, 4, 5]}
+  },
+  "required": ["reasoning", "score"],
+  "additionalProperties": false
+}

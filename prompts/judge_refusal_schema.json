@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "properties": {
+    "reasoning": {"type": "string"},
+    "correct": {"type": "boolean"}
+  },
+  "required": ["reasoning", "correct"],
+  "additionalProperties": false
+}

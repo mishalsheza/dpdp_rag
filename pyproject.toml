@@ -30,6 +30,8 @@ dpdp-ingest = "dpdp_rag.ingest.pipeline:main"
 dpdp-index = "dpdp_rag.retrieval.index:main"
 dpdp-retrieve = "dpdp_rag.retrieval.__main__:main"
 dpdp-api = "dpdp_rag.api.__main__:main"
+dpdp-eval = "dpdp_rag.eval.cli:main"
+dpdp-eval-coverage = "dpdp_rag.eval.coverage:main"
 
 [build-system]
 requires = ["hatchling"]

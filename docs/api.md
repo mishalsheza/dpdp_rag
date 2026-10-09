@@ -104,8 +104,9 @@ are local changes.
 
   ```python
   from dpdp_rag.metrics import MetricsStore, Where
+
   m = MetricsStore(Path("data/metrics.db"))
   m.p50_latency(Where(config_hash=h)), m.p99_latency(), m.mean_cost(Where(source="eval"))
-  m.request_counts()   # {"total", "cached", "refused", "api", "eval"}
+  m.request_counts()  # {"total", "cached", "refused", "api", "eval"}
   m.summary(Where(include_cached=False))
   ```
