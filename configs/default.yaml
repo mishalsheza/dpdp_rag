@@ -63,3 +63,62 @@ cross_refs:
   # Which filters also apply to expanded chunks (doc_type/rule/section would remove the
   # referenced Act sections, so only the date filter applies by default).
   apply_in_force_filter: true
+
+llm:
+  provider: anthropic
+  model: claude-haiku-5-5
+  max_tokens: 8000  # includes adaptive-thinking tokens
+  effort: medium  # Haiku 5.5's default, pinned explicitly
+  timeout_s: 60
+  max_retries: 2
+  cache_system_prompt: true  # cache_control on the (static) system prompt
+  # USD per 1M tokens (Anthropic first-party rates for claude-haiku-5-5).
+  pricing:
+    input: 0.10
+    output: 0.50
+    # Prompts larger than this many input tokens are billed at the long-context rates.
+    long_context_threshold: 100000
+    long_input: 0.50
+    long_output: 2.50
+    cache_write_multiplier: 1.25  # 5-minute TTL write
+    cache_read_multiplier: 0.10
+
+generation:
+  k: 8  # chunks retrieved per question (cross-referenced chunks are added on top)
+  prompt_files:
+    system: prompts/answer_system.md
+    user: prompts/answer_user.md
+    insufficient_context: prompts/refusal_insufficient_context.md
+    schema: prompts/answer_schema.json
+  # How a Schedule entry is named in pinpoints, by schedule.
+  schedule_entry_label:
+    The Schedule: row
+    First Schedule: item
+    Second Schedule: clause
+    Third Schedule: row
+    Fourth Schedule: row
+    Fifth Schedule: paragraph
+    Sixth Schedule: paragraph
+    Seventh Schedule: row
+  doc_labels:
+    act: Digital Personal Data Protection Act, 2023
+    rules: Digital Personal Data Protection Rules, 2025 (G.S.R. 846(E))
+    notification: Notification
+    corrigendum: Corrigendum G.S.R. 892(E)
+
+api:
+  host: 127.0.0.1
+  port: 8000
+  max_question_chars: 2000
+  response_cache:
+    enabled: true  # dev only: replay identical (question, as_of_date, config_hash) answers
+    dir: data/cache/responses
+
+metrics:
+  db_path: data/metrics.db
+
+tracing:
+  # Langfuse is used when enabled and LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY are set
+  # (LANGFUSE_HOST selects the server); otherwise tracing is a no-op.
+  langfuse_enabled: true
+  trace_name: ask

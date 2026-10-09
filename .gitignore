@@ -18,3 +18,7 @@ dist/
 .idea/
 .vscode/
 
+
+# Local runtime data
+data/metrics.db
+data/cache/

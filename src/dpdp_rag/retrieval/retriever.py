@@ -19,6 +19,10 @@ from dpdp_rag.retrieval.store import ChunkStore, render
 MODES = ("dense", "bm25", "hybrid")
 
 
+class RetrievalUnavailable(RuntimeError):
+    """The Qdrant collection is missing or out of date."""
+
+
 @dataclass
 class RetrievedChunk:
     chunk: Chunk
@@ -67,7 +71,7 @@ class Retriever:
             )
             if not index.is_current(self.store.chunks):
                 if not qcfg.get("auto_index"):
-                    raise RuntimeError(
+                    raise RetrievalUnavailable(
                         f"Qdrant collection {qcfg['collection']!r} is missing or out of date; "
                         "run `uv run dpdp-index` (or set qdrant.auto_index: true)"
                     )

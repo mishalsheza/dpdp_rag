@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "properties": {
+    "answer": {"type": "string"},
+    "citations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "chunk_id": {"type": "string"},
+          "pinpoint": {"type": "string"}
+        },
+        "required": ["chunk_id", "pinpoint"],
+        "additionalProperties": false
+      }
+    },
+    "refused": {"type": "boolean"},
+    "refusal_reason": {"type": "string", "enum": ["none", "insufficient_context", "legal_advice"]}
+  },
+  "required": ["answer", "citations", "refused", "refusal_reason"],
+  "additionalProperties": false
+}

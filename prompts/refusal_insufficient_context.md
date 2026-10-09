@@ -1,0 +1,1 @@
+I can't answer that from the DPDP Act, 2023, the DPDP Rules, 2025 or the related notifications that I have access to. The retrieved provisions don't address this question. Try rephrasing it, or name the section or rule you are interested in.

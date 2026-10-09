@@ -12,10 +12,15 @@ dependencies = [
     "fastembed>=0.9.0",
     "rank-bm25>=0.2.2",
     "python-dotenv>=1.2.4",
+    "anthropic>=1.12.1",
+    "fastapi>=0.143.0",
+    "uvicorn>=0.54.0",
+    "langfuse>=4.17.0",
 ]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "pytest>=8.0",
     "ruff>=0.5",
 ]
@@ -24,6 +29,7 @@ dev = [
 dpdp-ingest = "dpdp_rag.ingest.pipeline:main"
 dpdp-index = "dpdp_rag.retrieval.index:main"
 dpdp-retrieve = "dpdp_rag.retrieval.__main__:main"
+dpdp-api = "dpdp_rag.api.__main__:main"
 
 [build-system]
 requires = ["hatchling"]

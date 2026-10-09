@@ -1,1 +1,1 @@
-"""Answer generation; prompts are loaded from prompts/."""
+"""Answer generation with Claude; prompts are loaded from prompts/."""

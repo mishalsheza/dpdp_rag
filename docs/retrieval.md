@@ -23,8 +23,14 @@ from dpdp_rag.retrieval import retrieve, Filters
 from datetime import date
 
 hits = retrieve("Is parental consent needed for a child's data?", k=5)
-hits = retrieve("tracking of children", 5, filters=Filters(doc_type=["rules"], in_force_on=date.today()),
-                mode="hybrid", rerank=True, cross_refs=True)
+hits = retrieve(
+    "tracking of children",
+    5,
+    filters=Filters(doc_type=["rules"], in_force_on=date.today()),
+    mode="hybrid",
+    rerank=True,
+    cross_refs=True,
+)
 for h in hits:
     print(h.score, h.chunk.chunk_id, h.scores, h.expanded_from, h.via)
 ```

@@ -46,3 +46,18 @@ def retrieval_config() -> dict[str, Any]:
             "cross_refs": {"enabled": False},
         },
     )
+
+
+@pytest.fixture
+def api_config(retrieval_config: dict[str, Any], tmp_path: Path) -> dict[str, Any]:
+    """Retrieval over the tiny fixture plus throwaway metrics/cache paths, no tracing."""
+    return merge(
+        retrieval_config,
+        {
+            "generation": {"k": 4},
+            "cross_refs": {"enabled": True},
+            "metrics": {"db_path": str(tmp_path / "metrics.db")},
+            "api": {"response_cache": {"enabled": True, "dir": str(tmp_path / "cache")}},
+            "tracing": {"langfuse_enabled": False},
+        },
+    )
