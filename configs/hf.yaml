@@ -1,0 +1,11 @@
+# Overrides for the Hugging Face Space (deploy/hf-space): DPDP_CONFIG_OVERRIDES=hf.yaml
+# One container runs the API and the UI. Qdrant runs in memory and the index is built
+# on the first question, so no Qdrant service is needed.
+qdrant:
+  location: ":memory:"
+  auto_index: true
+api:
+  host: 127.0.0.1  # only the UI talks to the API; the Space exposes the UI on 7860
+  port: 8000
+ui:
+  api_url: http://127.0.0.1:8000
