@@ -31,11 +31,11 @@ and the Streamlit UI:
 ## Things to know
 
 - **First question is slow.** The in-memory index is built on the first question (364
-  chunks, roughly 20–40 s on the free CPU). Later questions are fast. Ask one question
+  chunks, about 45 s in a local test). Later questions are fast. Ask one question
   before a demo.
 - **Sleeping.** A free Space sleeps after 48 hours without visitors. Open the URL a few
   minutes before a demo.
-- **Updating.** The image clones `main` at build time. After merging changes, use
+- **Updating.** The image clones `main` at build time, and Docker caches that step. After merging changes, use
   **Settings → Factory rebuild** in the Space.
 - **Data does not persist.** `data/metrics.db` lives inside the container, so the metrics
   dashboard resets when the Space restarts.
